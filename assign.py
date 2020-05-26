@@ -4,6 +4,10 @@ import random
 
 
 
+"""
+List of time zones with a shift from UTC in hours. 
+Feel free to add more:
+"""
 time_zones = {
     'SST': 8,
     'MDT': -6,
@@ -17,6 +21,7 @@ time_zones = {
     'BST': 1,
     'CDT': -5
     }
+
 
 
 def local_to_global(time, time_zone):
@@ -37,7 +42,10 @@ def global_to_local(time, time_zone):
     # glob = time
 
 
-
+"""
+Debug params. If you want to see more about decisions on paper <debug_id>, 
+set detailed_debug = True
+"""
 detailed_debug = False
 debug_id = '591aaa'
 
@@ -46,21 +54,31 @@ debug_id = '591aaa'
 #                                  8-------------16-----------24
 
 
-# Acceptable meeting hours in global time -- these are all hours
+"""
+Acceptable meeting hours in global time -- these are all hours
+"""
 sched_time = [local_to_global(7, 'CST'), local_to_global(23, 'BST')]
 
+"""
 # Acceptable working hours
+"""
 default_time = [7, 22]
 
 
 
+# Use fixed pseudo-random seed in optimization
+# for easier experimentation and debugging
+random.seed(10)
+
+
+
+"""
+Various helper functions:
+"""
+
 def similar(p1, p2):
     return len(list(set(p1['reviewers']) & set(p2['reviewers'])))
     #return len(intersection(p1['reviewers'], p2['reviewers']))
-
-
-
-
 
 
 def get_paper_hours(times):
@@ -72,6 +90,13 @@ def get_paper_hours(times):
     return hours
 
 
+
+"""
+Time for each day is divided into 1h slots from 
+starting from sched_time[0] and ending with sched_time[1]
+Index of a slot is its order, starting from 0. 
+"""
+
 def get_hour_index(hour):
     if hour >= sched_time[0] and hour < sched_time[1]:
         return hour - sched_time[0]
@@ -82,9 +107,14 @@ def get_hour_index(hour):
     else:
         return -1
 
+
 def get_index_hours(index):
-    assert(index >= 0 and index < sched_time[1])
+    if not (index >= 0 and index < sched_time[1] - sched_time[0] + 1):
+        print(f"Wrong index {index}, has to be in [{sched_time[0]}, {sched_time[1]}]")
+        assert(index >= 0 and index < sched_time[1])
     return [index + sched_time[0], index + sched_time[0] + 1]
+
+
 
 
 
@@ -109,14 +139,20 @@ def time_parse(time, time_zone):
                 else:
                     time.append(float(hour))
         if len(time) == 0:
-            assert(cnt == 1)
+            if not (cnt == 1):
+                print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                assert(cnt == 1)
             if not neg:
                 time = list(map(lambda x : local_to_global(x, time_zone), default_time))
             times.append(time)
         else:
-            assert(len(time) == 2)
+            if not (len(time) == 2):
+                print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                assert(len(time) == 2)
             if neg:
-                assert(cnt == 1 and notimes == 1)
+                if not (cnt == 1 and notimes == 1):
+                    print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                    assert(cnt == 1 and notimes == 1)
                 if time[0] > default_time[0]:
                     times.append([local_to_global(default_time[0], time_zone), local_to_global(time[0], time_zone)])
                 if time[1] < default_time[1]:
@@ -142,7 +178,7 @@ def intersect_time(time1, time2):
     elif time2[0] <= time1[0] and time2[1] >= time1[1]:
         return check_empty(time1)
     else:
-        # if not (time1[0] <= time2[0] and time1[1] >= time2[1]):
+        # if not (time1[0] < time2[0] and time1[1] > time2[1]):
         #     print("Assert: {} {}".format(time1, time2))
         assert(time1[0] < time2[0] and time1[1] > time2[1])
         return check_empty(time2)
@@ -180,7 +216,10 @@ def intersect_times(times1, times2):
 
 
 
-
+"""
+Find best common time for a set of reviewers in revs.
+The output may be [] if there is no intersection
+"""
 def _find_best_times(revs):
     result = [[], []]
     for d in range(0,2):
@@ -196,6 +235,14 @@ def _find_best_times(revs):
     return result
 
 
+
+"""
+Find best common time for a set of reviewers in revs.
+If there is no common slot that works for everyone, 
+try to remove each single reviewer and search again. 
+If that doesn't work, try to remove each pair of two reviewers. 
+If even that doesn't work, return [].
+"""
 def find_best_times(revs):
     if detailed_debug:
         print("\n")
@@ -270,6 +317,7 @@ with open('mobicom20-pcassignments.csv', newline='') as csvfile:
             rev = line[2].strip()
             papers[line[0]]['reviewers'].append(rev)
             if rev not in reviewers.keys():
+                print(f"Reviewer {rev} is not in the list of reviewers. Please check.")
                 assert(False)
                 #reviewers[rev] = []
             reviewers[rev]["papers"].append(line[0].strip())
@@ -277,22 +325,14 @@ with open('mobicom20-pcassignments.csv', newline='') as csvfile:
             #print(line)
 
 
-# print(json.dumps(papers, indent=2))
-# print(json.dumps(reviewers, indent=2))
-
-# Number of papers per reviewer
-# for r,v in reviewers.items():
-#     print("{}: {}".format(r, len(v["papers"])))
-
-# Reviewer's availability
-# for r,v in reviewers.items():
-#     print("{}: {} {}".format(r, v["times"][0], v["times"][1]))
 
 
-
-
+"""
+Find an initial assignment that suits most people
+"""
 for k,v in papers.items():
     v["times"], v["rev"] = find_best_times(v["reviewers"])
+    # DEBUG code below 
     if (k == debug_id):
         print(f"DEBUG_BEST_TIMES: {k} {v['times']} {v['rev']}")
         for r in v["reviewers"]:
@@ -300,17 +340,22 @@ for k,v in papers.items():
 
 
 
-# Find schedule
+
+
+"""
+Create and optimize schedule.
+A schedule is a list of two lists(arrays), one for each day. 
+Each element of the list represents 1h slot. 
+"""
 sched = [
     [[] for i in range(sched_time[1] - sched_time[0])],
     [[] for i in range(sched_time[1] - sched_time[0])]
 ]
 
 
-# DEBUG - easier debugging
-random.seed(10)
-
-
+"""
+Populate the initial schedule based on the initial allocations from above. 
+"""
 cnt = 0
 for k,v in papers.items():
     cnt = cnt + 1
@@ -325,15 +370,12 @@ for k,v in papers.items():
     else:
         assert(False)
 
-    # DEBUG
-    # if k == debug_id:
-    #     day = 1
-
 
     hour = round(v["times"][day][0][0])
     index = get_hour_index(hour)
     if index < 0:
-        print(f"{k} {v['times'][day][0]} {hour} {index} {v}")
+        print(f"Impossible initial assignment for paper {k}: "
+            f"the paper interval {v['times'][day][0]} is outside of sched_time interval {sched_time}.")
     assert(index >= 0)
     sched[day][index].append(k)
 
@@ -343,6 +385,12 @@ for k,v in papers.items():
 
 
 
+
+"""
+Optimize schedule by moving papers around to a different slot 
+if that reduces the maximum load across the old and new slot. 
+This is a simple heuristic. We just repeat it a few times and it seems to work fine. 
+"""
 iter = 0
 for iter in range(0,10):
     iday = 0
@@ -385,9 +433,10 @@ for iter in range(0,10):
 
 
 
-#print(json.dumps(sched, indent=2))
 
-# Copy assignment to papers and reviewers
+"""
+Copy the final schedule as to papers and reviewers structures
+"""
 for ihour in range(0, len(sched[0])):
     iday = 0
     for day in sched:
@@ -397,7 +446,9 @@ for ihour in range(0, len(sched[0])):
             papers[id]["slot"] = interv
             papers[id]["day"] = iday
             inter = intersect_times([interv], papers[id]["times"][iday])
-            #print(f"{id}: {iday}/{ihour}/{interv} {papers[id]['times'][iday]} {inter}")
+            if len(inter[0]) == 0:
+                print(f"It seems that we have a bug - paper {id} has not be assigned a feasible slot: "
+                      f"{iday}/{ihour}/{interv} {papers[id]['times'][iday]} {inter}")
             assert(len(inter[0]) > 0)
 
             for r in papers[id]["reviewers"]:
@@ -416,6 +467,11 @@ for ihour in range(0, len(sched[0])):
 
 
 
+
+
+"""
+Print the aggregate number of papers per slot
+"""
 feas = 0
 feas_1 = 0
 feas_2 = 0
@@ -430,13 +486,10 @@ for k,v in papers.items():
         elif v["rev"] == -2:
             feas_2 = feas_2 + 1
         else:
+            print("Currently only support set 0, -1 and -2 of reviewers")
             assert(False)
     else:
         infeas = infeas + 1
-    #print("{} ({}): {} {}".format(k, v["rev"], v["times"][0], v["times"][1]))
-
-
-
 
 print(f"TPC time:")
 print("  HKG: {:2}:00-{:2}:00 ".format(global_to_local(sched_time[0], 'CST'), global_to_local(sched_time[1], 'CST')))
@@ -453,19 +506,6 @@ print(f"  All reviewers - 1 = {feas_1}")
 print(f"  All reviewers - 2 = {feas_2}")
 print(f"  Infeasible        = {infeas}")
 print("\n")
-
-
-# for k,v in papers.items():
-#     if v["rev"] < 0:
-#         print("**** {} ({}): ".format(k, v["rev"]))
-#     else:
-#         print("{}: ".format(k))
-#     for r in v["reviewers"]:
-#         tz = reviewers[r]["time_zone"]
-#         t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
-#         t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
-#         print("  {}: {} {}".format(r, t0, t1))
-
 
 
 total = 0
@@ -516,9 +556,12 @@ print(f"Second half: {second_half[0]}                 Second half: {second_half[
 
 
 
+
+"""
+Print the paper assignment per slot
+"""
 print("\n\n\n\n")
 print("Paper assignment per slot\n")
-
 iday = 0
 for day in sched:
     if iday == 0:
@@ -540,15 +583,54 @@ for day in sched:
     iday = iday + 1
 
 
-#print(json.dumps(papers, indent=2))
-#print(json.dumps(reviewers, indent=2))
 
 
+
+
+
+
+"""
+Print the slot assignment per paper, and also how does it fit each reviewer
+"""
+print("\n\n")
+print("Time slots per paper and reviewers:")
+print("--------------------------------------------")
+for k,v in papers.items():
+    if v["rev"] < 0:
+        print("**** {} ({}): ".format(k, v["rev"]), end="")
+    else:
+        print("{}: ".format(k), end="")
+    interv = v["slot"]
+    print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
+    print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+    print("")    
+    for r in v["reviewers"]:
+        tz = reviewers[r]["time_zone"]
+        t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
+        t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+        print("  {}: assigned={}-{} {}, available={} {}".format(
+            r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz, t0, t1))
+
+
+
+
+
+
+
+
+"""
+Paper assignment per reviewer
+"""
 print("\n\n")
 print("Time slots per reviewer in local time zones:")
 print("--------------------------------------------")
 for r,v in reviewers.items():
-    print(f"{r}, Mon: ", end="")
+    tz = v['time_zone']
+    if time_zones[tz] < 0:
+        tzs = "UTC" + str(time_zones[tz])
+    else:
+        tzs = "UTC+" + str(time_zones[tz])
+    print(f"{r} ({tz}, {tzs}), Mon: ", end="")
     for s in v["slots"]:
         if s["day"] == 0:
             print("[{:2} {:2}] ".format(
@@ -564,13 +646,4 @@ for r,v in reviewers.items():
     
 
 
-
-# # Reviewer's availability
-# for r,v in reviewers.items():
-#     assign = v["papers"]
-#     time_zone = v["time_zone"]
-#     print(f"{r} ({time_zone}): ", end="")
-#     for id in assign:
-#         paper = papers[id]
-#         print("{} {}".format(r, v["times"][0], v["times"][1]))
 

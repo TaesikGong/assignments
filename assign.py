@@ -11,6 +11,7 @@ Feel free to add more:
 time_zones = {
     'SST': 8,
     'MDT': -6,
+    'MST': -7,
     'EDT': -4,
     'CST': 8,
     'IST': 5.5,
@@ -19,7 +20,8 @@ time_zones = {
     'CET': 2,
     'KST': 9,
     'BST': 1,
-    'CDT': -5
+    'CDT': -5,
+    'PKT': 5
     }
 
 
@@ -120,16 +122,16 @@ def get_index_hours(index):
 
 
 
-def time_parse(time, time_zone):
+def time_parse(time_str, time_zone):
     times = []
     cnt = 0
-    notimes = len(time.split(","))
-    for interval in time.split(","):
+    notimes = len(time_str.split(","))
+    for interval in time_str.split(","):
         neg = False
         cnt = cnt + 1
-        if interval[0:3] == "not":
+        if interval.strip()[0:3] == "not":
             neg = True
-            interval = interval[3:]
+            interval = interval.strip()[3:]
         time = []
         if interval.strip():
             for hour in interval.strip().split("-"):
@@ -140,18 +142,18 @@ def time_parse(time, time_zone):
                     time.append(float(hour))
         if len(time) == 0:
             if not (cnt == 1):
-                print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
                 assert(cnt == 1)
             if not neg:
                 time = list(map(lambda x : local_to_global(x, time_zone), default_time))
             times.append(time)
         else:
             if not (len(time) == 2):
-                print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
                 assert(len(time) == 2)
             if neg:
                 if not (cnt == 1 and notimes == 1):
-                    print(f"Wrong time format in string '{time}'. It has to be (<start>-<end>,)+")
+                    print(f"\n\nWrong time format in string '{time_str}'. We currently support only one interval with not keyword\n\n")
                     assert(cnt == 1 and notimes == 1)
                 if time[0] > default_time[0]:
                     times.append([local_to_global(default_time[0], time_zone), local_to_global(time[0], time_zone)])
@@ -592,24 +594,26 @@ for day in sched:
 """
 Print the slot assignment per paper, and also how does it fit each reviewer
 """
-print("\n\n")
-print("Time slots per paper and reviewers:")
-print("--------------------------------------------")
-for k,v in papers.items():
-    if v["rev"] < 0:
-        print("**** {} ({}): ".format(k, v["rev"]), end="")
-    else:
-        print("{}: ".format(k), end="")
-    interv = v["slot"]
-    print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-    print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
-    print("")    
-    for r in v["reviewers"]:
-        tz = reviewers[r]["time_zone"]
-        t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
-        t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
-        print("  {}: assigned={}-{} {}, available={} {}".format(
-            r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz, t0, t1))
+print_paper_assignment_per_slot = False
+if print_paper_assignment_per_slot:
+    print("\n\n")
+    print("Time slots per paper and reviewers:")
+    print("--------------------------------------------")
+    for k,v in papers.items():
+        if v["rev"] < 0:
+            print("**** {} ({}): ".format(k, v["rev"]), end="")
+        else:
+            print("{}: ".format(k), end="")
+        interv = v["slot"]
+        print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
+        print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+        print("")    
+        for r in v["reviewers"]:
+            tz = reviewers[r]["time_zone"]
+            t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
+            t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+            print("  {}: assigned={}-{} {}, available={} {}".format(
+                r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz, t0, t1))
 
 
 
@@ -630,13 +634,13 @@ for r,v in reviewers.items():
         tzs = "UTC" + str(time_zones[tz])
     else:
         tzs = "UTC+" + str(time_zones[tz])
-    print(f"{r} ({tz}, {tzs}), Mon: ", end="")
+    print(f"{r}, ({tz} {tzs}), ", end="")
     for s in v["slots"]:
         if s["day"] == 0:
             print("[{:2} {:2}] ".format(
                 global_to_local(s["slot"][0], v["time_zone"]), 
                 global_to_local(s["slot"][1], v["time_zone"])), end='')
-    print(f", Tue: ", end="")
+    print(f", ", end="")
     for s in v["slots"]:
         if s["day"] == 1:
             print("[{:2} {:2}] ".format(

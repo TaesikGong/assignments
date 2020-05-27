@@ -594,7 +594,7 @@ for day in sched:
 """
 Print the slot assignment per paper, and also how does it fit each reviewer
 """
-print_paper_assignment_per_slot = False
+print_paper_assignment_per_slot = True
 if print_paper_assignment_per_slot:
     print("\n\n")
     print("Time slots per paper and reviewers:")
@@ -610,11 +610,18 @@ if print_paper_assignment_per_slot:
         print("")    
         for r in v["reviewers"]:
             tz = reviewers[r]["time_zone"]
-            t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
-            t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
-            print("  {}: assigned={}-{} {}, available={} {}".format(
-                r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz, t0, t1))
-
+            # t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
+            # t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+            print("  {}: assigned={}-{} {}, available Mon=".format(
+                r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+            for i in reviewers[r]["times"][0]:
+                t0 = list(map(lambda x : global_to_local(x, tz), i))
+                print(f"{t0} ", end="")
+            print("   Tue=", end="")
+            for i in reviewers[r]["times"][1]:
+                t0 = list(map(lambda x : global_to_local(x, tz), i))
+                print(f"{t0} ", end="")
+            print("")            
 
 
 

@@ -664,10 +664,11 @@ print(f"Second half: {second_half[0]}                 Second half: {second_half[
 
 
 
+discussion_order = []
 
 
 """
-Print the paper assignment per slot
+Print the paper assignment per slot and create a discussion order
 """
 print("\n\n\n\n")
 print("Paper assignment per slot\n")
@@ -686,10 +687,12 @@ for day in sched:
         print("[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
 
         for id in hour:
+            discussion_order.append(id)
             print(f"#{id} ", end="")
         print("")
 
     iday = iday + 1
+
 
 
 
@@ -829,6 +832,121 @@ for r,v in reviewers.items():
                 global_to_local(s["slot"][1], v["time_zone"])), end='')
     print("")
     
+
+
+
+
+"""
+Print discussion order tags assignment in HotCRP order
+"""
+print("\n\n")
+print("Print discussion order tags assignment in HotCRP order:")
+print("--------------------------------------------\n")
+print("pid,action,tag")
+cnt = 10
+for paper_id in discussion_order:
+    print(f"{paper_id},tag,discuss#{cnt}")
+    # Leave enough gap to be able to squeeze papers in between if needed
+    cnt = cnt + 10
+
+
+
+
+
+
+
+"""
+Choose and print lead reviewer for each paper. 
+"""
+print("\n\n")
+print("Lead reviewer for each paper:")
+print("--------------------------------------------")
+print("pid,action,user")
+all_assigned = False
+max_leads = 2
+while not all_assigned:
+    for paper_id,v in papers.items():
+        lead_rev = None
+        bestOveMer = 0
+        bestRevExp = 0
+        bestNoLeads = 0
+
+        day = v["day"]
+        interv = v["slot"]
+
+        for r in v["reviewers"]:
+            tz = reviewers[r]["time_zone"]
+
+            if "RevExp" in reviewers[r]["papers"][paper_id].keys():
+                RevExp = int(reviewers[r]["papers"][paper_id]["RevExp"])
+            else:
+                RevExp = 0
+
+            if "OveMer" in reviewers[r]["papers"][paper_id].keys():
+                OveMer = int(reviewers[r]["papers"][paper_id]["OveMer"])
+            else:
+                OveMer = 0
+
+            if not "lead" in reviewers[r].keys():
+                noLeads = 0
+            else:
+                noLeads = len(reviewers[r]["lead"])
+
+            is_better = \
+                (noLeads < max_leads) and (\
+                    RevExp > bestRevExp or \
+                    (RevExp == bestRevExp and noLeads < bestNoLeads) or \
+                    (RevExp > 1 and noLeads < bestNoLeads) \
+                )
+
+                    # (RevExp == bestRevExp and OveMer > bestOveMer) or \
+                    # (RevExp == bestRevExp and OveMer == bestOveMer and noLeads < bestNoLeads) or \
+
+            ok = check_feas_in_local_time(global_to_local(interv, tz), 
+                    list(map(lambda x : global_to_local(x, tz), reviewers[r]["times"][day])))
+
+            if ok and (not lead_rev or is_better):
+                lead_rev = r
+                bestOveMer = OveMer
+                bestRevExp = RevExp
+                bestNoLeads = noLeads
+
+        if not "lead" in reviewers[lead_rev].keys():
+            reviewers[lead_rev]["lead"] = [paper_id]
+        else:
+            reviewers[lead_rev]["lead"].append(paper_id)
+
+        papers[paper_id]["lead_reviewer"] = lead_rev
+
+    all_assigned = True
+    for paper_id,v in papers.items():
+        if "lead_reviewer" not in papers[paper_id].keys():
+            all_assigned = False
+            break
+
+
+for paper_id,v in papers.items():
+    if "lead_reviewer" not in papers[paper_id].keys():
+        lead_rev = ""
+    else:
+        lead_rev = papers[paper_id]["lead_reviewer"]
+    rev_scores = reviewers[lead_rev]["papers"][paper_id]
+
+    #print(f"{paper_id},lead,{lead_rev},{rev_scores['RevExp']}")
+    #print(f"{paper_id},lead,{lead_rev},{rev_scores}")
+    print(f"{paper_id},lead,{lead_rev}")
+
+
+print("\n\nAggregate:")
+for r in reviewers:
+    if not "lead" in reviewers[r].keys():
+        num = 0
+    else:
+        num = len(reviewers[r]["lead"])
+    print(f"{r}: {num}")
+
+
+
 
 
 

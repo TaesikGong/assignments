@@ -37,7 +37,7 @@ def local_to_global(time, time_zone):
 
 def global_to_local(time, time_zone):
     if isinstance(time, list):
-        return list(map(lambda x: (x + 9 - time_zones[time_zone]) % 24, time))
+        return list(map(lambda x: (x - 9 + time_zones[time_zone]) % 24, time))
     else:
         glob = (time - 9 + time_zones[time_zone]) % 24
         #glob = glob if glob < 24 else glob - 24
@@ -118,6 +118,15 @@ def get_index_hours(index):
     return [index + sched_time[0], index + sched_time[0] + 1]
 
 
+
+def check_feas_in_local_time(assignment, avail_list):
+    checked = False
+    for interval in avail_list:
+        if assignment[0] >= interval[0] and assignment[0] < interval[1]:
+            checked = True
+            break
+
+    return checked
 
 
 
@@ -240,13 +249,66 @@ def _find_best_times(revs):
 
 
 """
+Sort reviewers according to the preference on who do we want to attend
+from the least to the most desired. Also return a list of reviewers 
+that absolutely must attend, if any (or empty otherwise)
+"""
+def sort_reviewers(paper_id):
+    revs = papers[paper_id]["reviewers"]
+    sorted_revs = []
+    must_revs = []
+
+    # Add high score reviewers
+    for r in revs:
+        if not r in sorted_revs and "RevExp" in reviewers[r]["papers"][paper_id].keys():
+            if int(reviewers[r]["papers"][paper_id]["RevExp"]) == 3:
+                sorted_revs.append(r)
+                must_revs.append(r)
+    
+    # Be postive - higher preference to positive reviewers
+    for r in revs:
+        if not r in sorted_revs and "OveMer" in reviewers[r]["papers"][paper_id].keys():
+            if int(reviewers[r]["papers"][paper_id]["OveMer"]) >= 5:
+                sorted_revs.append(r)
+    
+    for r in revs:
+        if not r in sorted_revs and "OveMer" in reviewers[r]["papers"][paper_id].keys():
+            if int(reviewers[r]["papers"][paper_id]["OveMer"]) >= 4:
+                sorted_revs.append(r)
+
+    for r in revs:
+        if not r in sorted_revs and "OveMer" in reviewers[r]["papers"][paper_id].keys():
+            if int(reviewers[r]["papers"][paper_id]["OveMer"]) < 3:
+                sorted_revs.append(r)
+
+
+    # All others
+    # Some may not have scores yet so we also add here
+    for r in revs:
+        if not r in sorted_revs:
+            sorted_revs.append(r)
+
+    # Make sure we didn't forget anyone
+    assert(len(sorted_revs) == len(revs))
+
+    # We actually need least to most desirable
+    sorted_revs.reverse()
+
+    return sorted_revs, must_revs
+
+
+
+
+
+"""
 Find best common time for a set of reviewers in revs.
 If there is no common slot that works for everyone, 
 try to remove each single reviewer and search again. 
 If that doesn't work, try to remove each pair of two reviewers. 
 If even that doesn't work, return [].
 """
-def find_best_times(revs):
+def find_best_times(paper_id):
+    revs, must_revs = sort_reviewers(paper_id)
     if detailed_debug:
         print("\n")
     result = _find_best_times(revs)
@@ -254,17 +316,18 @@ def find_best_times(revs):
         print(f"F0: {result}\n")
     if not result[0] and not result[1]:
         for r in revs:
-            new_rev = revs.copy()
-            new_rev.remove(r)
-            result = _find_best_times(new_rev)
-            if detailed_debug:
-                print(f"F1: {result}\n")
-            if result[0] or result[1]:
-                return result, -1
+            if not r in must_revs:
+                new_rev = revs.copy()
+                new_rev.remove(r)
+                result = _find_best_times(new_rev)
+                if detailed_debug:
+                    print(f"F1: {result}\n")
+                if result[0] or result[1]:
+                    return result, -1
     if not result[0] and not result[1]:
         for r in revs:
             for r1 in revs:
-                if not r == r1:
+                if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
                     new_rev = revs.copy()
                     new_rev.remove(r)
                     new_rev.remove(r1)
@@ -354,13 +417,14 @@ with open('mobicom20-scores.csv', newline='') as csvfile:
 """
 Find an initial assignment that suits most people
 """
-for k,v in papers.items():
-    v["times"], v["rev"] = find_best_times(v["reviewers"])
+for paper_id,v in papers.items():
+    v["times"], v["rev"] = find_best_times(paper_id)
     # DEBUG code below 
-    if (k == debug_id):
-        print(f"DEBUG_BEST_TIMES: {k} {v['times']} {v['rev']}")
+    if (paper_id == debug_id):
+        print(f"DEBUG_BEST_TIMES: {paper_id} {v['times']} {v['rev']}")
         for r in v["reviewers"]:
             print("  {}: {} {}".format(r, reviewers[r]["times"][0], reviewers[r]["times"][1]))
+
 
 
 
@@ -375,6 +439,10 @@ sched = [
     [[] for i in range(sched_time[1] - sched_time[0])],
     [[] for i in range(sched_time[1] - sched_time[0])]
 ]
+
+
+
+
 
 
 """
@@ -406,6 +474,8 @@ for k,v in papers.items():
     # DEBUG
     if k == debug_id:
         print(f"DEBUG_INITIAL: id={k} day={day} int_start={v['times'][day][0][0]} hour={hour} hour_index={index}")
+
+
 
 
 
@@ -454,6 +524,8 @@ for iter in range(0,10):
                         break
             ihour = ihour + 1
         iday = iday + 1
+
+
 
 
 
@@ -626,7 +698,7 @@ for day in sched:
 """
 Print the slot assignment per paper, and also how does it fit each reviewer
 """
-print_paper_assignment_per_slot = True
+print_paper_assignment_per_slot = False
 if print_paper_assignment_per_slot:
     print("\n\n")
     print("Time slots per paper and reviewers:")
@@ -636,14 +708,25 @@ if print_paper_assignment_per_slot:
             print("**** {} ({}): ".format(k, v["rev"]), end="")
         else:
             print("{}: ".format(k), end="")
+
+        day = v["day"]
         interv = v["slot"]
         print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
         print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
         print("")    
         for r in v["reviewers"]:
             tz = reviewers[r]["time_zone"]
+
+            ok = check_feas_in_local_time(global_to_local(interv, tz), 
+                    list(map(lambda x : global_to_local(x, tz), reviewers[r]["times"][day])))
+
             # t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
             # t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+            # if global_to_local(interv[0], tz) < default_time[0] or global_to_local(interv[0], tz) > default_time[1]:
+
+            if not ok:
+                print("!!!! ", end="")
+
             print(f"  {r}: ", end="")
             print(" " * max([0, 30-len(r)]), end="")
 
@@ -651,7 +734,8 @@ if print_paper_assignment_per_slot:
             for exp, score in reviewers[r]["papers"][k].items():
                 print(f"{exp}: {score} ", end="")
 
-            print(" assigned={}-{} {}, \tavailable Mon=".format(
+            print(" assigned={}, {}-{} {}, \tavailable Mon=".format(
+                "Mon" if day == 0 else "Tue",
                 global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
 
             for i in reviewers[r]["times"][0]:
@@ -664,6 +748,56 @@ if print_paper_assignment_per_slot:
             print("")
 
 
+
+
+
+
+
+"""
+Print the the papers and reviewers that were not successfully assigned
+"""
+print("\n\n")
+print("Time slots for paper with failed reviewer assignments:")
+print("--------------------------------------------")
+for k,v in papers.items():
+    if v["rev"] < 0:
+        print("{} ({}): ".format(k, v["rev"]), end="")
+
+        day = v["day"]
+        interv = v["slot"]
+        print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
+        print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+        print("")    
+        for r in v["reviewers"]:
+            tz = reviewers[r]["time_zone"]
+
+            ok = check_feas_in_local_time(global_to_local(interv, tz), 
+                    list(map(lambda x : global_to_local(x, tz), reviewers[r]["times"][day])))
+
+            # t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
+            # t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+            # if global_to_local(interv[0], tz) < default_time[0] or global_to_local(interv[0], tz) > default_time[1]:
+
+            if not ok:
+                print(f"  {r}: ", end="")
+                print(" " * max([0, 30-len(r)]), end="")
+
+                print(" Scores: ", end="")
+                for exp, score in reviewers[r]["papers"][k].items():
+                    print(f"{exp}: {score} ", end="")
+
+                print(" assigned={}, {}-{} {}, \tavailable Mon=".format(
+                    "Mon" if day == 0 else "Tue",
+                    global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+
+                for i in reviewers[r]["times"][0]:
+                    t0 = list(map(lambda x : global_to_local(x, tz), i))
+                    print(f"{t0} ", end="")
+                print("   Tue=", end="")
+                for i in reviewers[r]["times"][1]:
+                    t0 = list(map(lambda x : global_to_local(x, tz), i))
+                    print(f"{t0} ", end="")
+                print("")
 
 
 

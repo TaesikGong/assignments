@@ -9,6 +9,7 @@ List of time zones with a shift from UTC in hours.
 Feel free to add more:
 """
 time_zones = {
+    'UTC': 0,
     'SST': 8,
     'MDT': -6,
     'MST': -7,
@@ -298,7 +299,7 @@ with open('Mobicom TPC-schedule.csv', newline='') as csvfile:
             reviewers[email] = {
                 "times" : [day_1, day_2],
                 "time_zone" : time_zone,
-                "papers" : [],
+                "papers" : {},
                 "slots" : []
             }
 
@@ -322,9 +323,30 @@ with open('mobicom20-pcassignments.csv', newline='') as csvfile:
                 print(f"Reviewer {rev} is not in the list of reviewers. Please check.")
                 assert(False)
                 #reviewers[rev] = []
-            reviewers[rev]["papers"].append(line[0].strip())
+            reviewers[rev]["papers"][line[0].strip()] = {}
         #else:
             #print(line)
+
+
+cnt = 0
+with open('mobicom20-scores.csv', newline='') as csvfile:
+    csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
+    for line in csvr:
+        cnt = cnt + 1
+        if cnt > 1:
+            paper_id = line[0]
+            rev = line[4]
+            scores = {
+                "OveMer" : line[5],
+                "NovExc" : line[6],
+                "TecQua" : line[7],
+                "WriQua" : line[8],
+                "RevExp" : line[9]
+            }
+            if rev in reviewers.keys():
+                # Otherwise could be an external reviewer
+                reviewers[rev]["papers"][paper_id] = scores
+
 
 
 
@@ -493,6 +515,12 @@ for k,v in papers.items():
     else:
         infeas = infeas + 1
 
+
+
+
+print_utc = True
+
+
 print(f"TPC time:")
 print("  HKG: {:2}:00-{:2}:00 ".format(global_to_local(sched_time[0], 'CST'), global_to_local(sched_time[1], 'CST')))
 print("  LON: {:2}:00-{:2}:00 ".format(global_to_local(sched_time[0], 'BST'), global_to_local(sched_time[1], 'BST')))
@@ -515,8 +543,12 @@ total = 0
 print_detail = False
 #print_detail = True
 
-print("  HGK     LON                     HGK     LON        ")
-print("--------------------            ---------------------")
+if print_utc:
+    print("  UTC                  UTC   ")
+    print("--------            ---------")
+else:
+    print("  HGK     LON                     HGK     LON        ")
+    print("--------------------            ---------------------")
 
 first_half = [0, 0]
 second_half = [0, 0]
@@ -529,8 +561,11 @@ for ihour in range(0, len(sched[0])):
         if print_detail:
             print(f"{iday} ", end='')
         # print(f"{ihour:2} [{interv[0]:2} {interv[1]:2}] ", end='')
-        print("[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-        print("[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+        if print_utc:
+            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'UTC'), global_to_local(interv[1], 'UTC')), end='')
+        else:
+            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
+            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
         print(f": {len(hour):2} \t\t", end='')
         if print_detail:
             print("")
@@ -588,9 +623,6 @@ for day in sched:
 
 
 
-
-
-
 """
 Print the slot assignment per paper, and also how does it fit each reviewer
 """
@@ -612,8 +644,16 @@ if print_paper_assignment_per_slot:
             tz = reviewers[r]["time_zone"]
             # t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
             # t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
-            print("  {}: assigned={}-{} {}, available Mon=".format(
-                r, global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+            print(f"  {r}: ", end="")
+            print(" " * max([0, 30-len(r)]), end="")
+
+            print(" Scores: ", end="")
+            for exp, score in reviewers[r]["papers"][k].items():
+                print(f"{exp}: {score} ", end="")
+
+            print(" assigned={}-{} {}, \tavailable Mon=".format(
+                global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+
             for i in reviewers[r]["times"][0]:
                 t0 = list(map(lambda x : global_to_local(x, tz), i))
                 print(f"{t0} ", end="")
@@ -621,7 +661,7 @@ if print_paper_assignment_per_slot:
             for i in reviewers[r]["times"][1]:
                 t0 = list(map(lambda x : global_to_local(x, tz), i))
                 print(f"{t0} ", end="")
-            print("")            
+            print("")
 
 
 

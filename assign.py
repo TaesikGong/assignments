@@ -923,6 +923,24 @@ for paper_id in discussion_order:
 
 
 
+"""
+Print schedule tags based on starting hour in UTC in HotCRP order
+"""
+print("\n\n")
+print("Print schedule tags based on starting hour in UTC in HotCRP order:")
+print("--------------------------------------------\n")
+print("pid,action,tag")
+cnt = 10
+for paper_id in discussion_order:
+    starting_slot = global_to_local(papers[paper_id]["slot"][0], 'UTC')
+    starting_slot = starting_slot if not starting_slot == 23 else -1
+    day = "Mon" if papers[paper_id]["day"] == 0 else "Tue"
+    print(f"{paper_id},tag,schedule_{day}_UTC_{starting_slot}")
+    # Leave enough gap to be able to squeeze papers in between if needed
+    cnt = cnt + 10
+
+
+
 
 
 

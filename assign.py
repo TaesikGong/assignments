@@ -27,7 +27,7 @@ We collect all reviewers availability times in their "local" times (express in t
 and convert them into a single time zone (UTC - 9) which we call "global" time. 
 We perform all the scheduling in "global" time and later convert into local time. 
 
-We have two global parametrs: 
+We have two global parameters: 
 - sched_time: this the time during which the TPC can be meeting, in "global" time. 
   This is the time when the PC chairs can work. It can be 24h, but sometimes shorter times 
   give equally good allocation. Experiment and see.

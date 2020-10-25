@@ -522,6 +522,7 @@ sched = [
 
 
 
+exception_list = []
 
 """
 Populate the initial schedule based on the initial allocations from above. 
@@ -539,7 +540,9 @@ for k,v in papers.items():
     elif v["times"][1]:
         day = 1
     else:
-        assert(False)
+        exception_list.append(k)
+        continue
+        # assert(False) # no overlapping time schedule for all reviewers
 
 
     hour = round(v["times"][day][0][0])
@@ -793,6 +796,10 @@ if print_paper_assignment_per_slot:
     print("Time slots per paper and reviewers:")
     print("--------------------------------------------")
     for k,v in papers.items():
+
+        if k in exception_list:
+            continue
+
         if v["rev"] < 0:
             print("**** {} ({}): ".format(k, v["rev"]), end="")
         else:
@@ -975,6 +982,8 @@ while not all_assigned:
         bestRevExp = 0
         bestNoLeads = 0
 
+        if paper_id in exception_list:
+            continue
         day = v["day"]
         interv = v["slot"]
 
@@ -1024,12 +1033,16 @@ while not all_assigned:
 
     all_assigned = True
     for paper_id,v in papers.items():
+        if paper_id in exception_list:
+            continue
         if "lead_reviewer" not in papers[paper_id].keys():
             all_assigned = False
             break
 
 
 for paper_id,v in papers.items():
+    if paper_id in exception_list:
+        continue
     if "lead_reviewer" not in papers[paper_id].keys():
         lead_rev = ""
     else:
@@ -1054,3 +1067,6 @@ for r in reviewers:
 
 
 
+print("\n\nPapers with no overlapping time among reviewers:")
+for pid in exception_list:
+    print(pid)

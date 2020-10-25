@@ -1,7 +1,7 @@
 import csv
 import random
 
-random.seed(0)
+random.seed(3)
 target_name = 'Mobicom TPC-schedule_dummy.csv'
 
 time_zones = {
@@ -34,11 +34,23 @@ with open('mobicom21-pcassignments.csv', newline='') as csvfile:
         email = line[2]
         if not email in reviewers and email != "#pc":
             reviewers[email] = {}
-            first_start = random.randint(7, 19)
-            second_start = random.randint(7, 19)
-            duration = 3
-            reviewers[email]['first'] = f'not {first_start}:00-{first_start + duration}:00'
-            reviewers[email]['second'] = f'not {second_start}:00-{second_start + duration}:00'
+
+            #heuristic 1
+            # duration = 3
+            # first_start = random.randint(7, 23-duration)
+            # second_start = random.randint(7, 23-duration)
+            # reviewers[email]['first'] = f'not {first_start}:00-{first_start + duration}:00'
+            # reviewers[email]['second'] = f'not {second_start}:00-{second_start + duration}:00'
+            # reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
+
+
+            #heuristic 2
+
+            duration = 11
+            first_start = random.randint(7, 22-duration)
+            second_start = random.randint(7, 22-duration)
+            reviewers[email]['first'] = f'{first_start}:00-{first_start + duration}:00'
+            reviewers[email]['second'] = f'{second_start}:00-{second_start + duration}:00'
             reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
 
 f = open(target_name, 'w', newline='',encoding='utf-8')

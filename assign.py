@@ -72,6 +72,16 @@ The program prints bunch of stuff at the end:
 List of time zones with a shift from UTC in hours. 
 Feel free to add more:
 """
+
+
+schedule_file = 'Mobicom TPC-schedule_dummy.csv'
+pc_assign_file = 'mobicom21-pcassignments.csv'
+score_file = 'mobicom21-scores.csv'
+
+
+
+
+
 time_zones = {
     'UTC': 0,
     'SST': 8,
@@ -413,10 +423,10 @@ reviewers = {}
 
 cnt = 0
 
-with open('Mobicom TPC-schedule.csv', newline='') as csvfile:
+with open(schedule_file, newline='') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
     for line in csvr:
-        cnt = cnt + 1
+        cnt = cnt + 1 # assume header
         if cnt > 1:
             email = line[1].strip()
             time_zone = line[8]
@@ -434,7 +444,7 @@ with open('Mobicom TPC-schedule.csv', newline='') as csvfile:
 
 cnt = 0
 
-with open('mobicom20-pcassignments.csv', newline='') as csvfile:
+with open(pc_assign_file, newline='') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
     for line in csvr:
         if line[1] == 'clearreview':
@@ -456,7 +466,7 @@ with open('mobicom20-pcassignments.csv', newline='') as csvfile:
 
 
 cnt = 0
-with open('mobicom20-scores.csv', newline='') as csvfile:
+with open(score_file, newline='') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
     for line in csvr:
         cnt = cnt + 1

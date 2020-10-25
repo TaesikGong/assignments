@@ -626,7 +626,7 @@ for ihour in range(0, len(sched[0])):
             inter = intersect_times([interv], papers[id]["times"][iday])
             if len(inter[0]) == 0:
                 print(f"It seems that we have a bug - paper {id} has not be assigned a feasible slot: "
-                      f"{iday}/{ihour}/{interv} {papers[id]['times'][iday]} {inter}")
+                      f"{iday}/{ihour}/{interv} : {papers[id]['times'][iday]} : {inter}")
             assert(len(inter[0]) > 0)
 
             for r in papers[id]["reviewers"]:
@@ -1054,7 +1054,7 @@ for paper_id,v in papers.items():
     print(f"{paper_id},lead,{lead_rev}")
 
 
-print("\n\nAggregate:")
+print("\n\nNum_lead Aggregate:")
 for r in reviewers:
     if not "lead" in reviewers[r].keys():
         num = 0

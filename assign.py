@@ -568,7 +568,7 @@ if that reduces the maximum load across the old and new slot.
 This is a simple heuristic. We just repeat it a few times and it seems to work fine. 
 """
 iter = 0
-for iter in range(0,10):
+for iter in range(0,100):
     iday = 0
     for day in sched:
         ihour = 0

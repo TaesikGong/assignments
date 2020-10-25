@@ -1,7 +1,7 @@
 import csv
 import json
 import random
-
+import math
 
 """
 
@@ -245,6 +245,9 @@ def time_parse(time_str, time_zone):
                     times.append([local_to_global(time[1], time_zone), local_to_global(default_time[1], time_zone)])
             else:
                 times.append(list(map(lambda x : local_to_global(x, time_zone), time)))
+
+    for t in times:
+        t[0], t[1] = math.ceil(t[0]), math.floor(t[1]) #celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
 
     return times
 

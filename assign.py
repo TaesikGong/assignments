@@ -494,6 +494,7 @@ with open(score_file, newline='') as csvfile:
 """
 Find an initial assignment that suits most people
 """
+print("-----------------Find an initial assignment that suits most people--------------")
 for paper_id,v in papers.items():
     v["times"], v["rev"] = find_best_times(paper_id)
     # DEBUG code below 
@@ -525,6 +526,7 @@ sched = [
 """
 Populate the initial schedule based on the initial allocations from above. 
 """
+print("-----------------Populate the initial schedule based on the initial allocations from above. --------------")
 cnt = 0
 for k,v in papers.items():
     cnt = cnt + 1

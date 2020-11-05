@@ -436,7 +436,7 @@ with open(pc_assign_file, newline='') as csvfile:
                 'title': line[4],
                 'reviewers': []
             }
-        elif line[1] == 'primary':
+        elif line[1] in ['primary', 'secondary']:
             rev = line[2].strip()
             papers[line[0]]['reviewers'].append(rev)
             if rev not in reviewers.keys():

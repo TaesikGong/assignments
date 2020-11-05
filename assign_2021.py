@@ -83,7 +83,7 @@ time_zones = {
     'CT': -6,
     'EET': 2,
     'CET': 1,
-    'CST': -6,
+    'CST': 8,
     'GMT': 0,
     'GMT-7': -7,
     'PST': -8,
@@ -247,8 +247,6 @@ def time_parse(time_str, time_zone):
                 else:
                     print(f'(DEBUG) Weird input in the schedule file. Converting to all available.')
                     print(f'hour: {hour}')
-                    # time.append(float(local_to_global(default_time[0], time_zone)))
-                    # time.append(float(local_to_global(default_time[1], time_zone)))
         if len(time) == 0:
             if not (cnt == 1):
                 print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
@@ -1066,7 +1064,7 @@ for r, v in reviewers.items():
     for s in v["slots"]:
         if s["day"] == 1:
             print("[{:2}-{:2}] ".format(
-                to_str((s["slot"][0], v["time_zone"])),
+                to_str(global_to_local(s["slot"][0], v["time_zone"])),
                 to_str(global_to_local(s["slot"][1], v["time_zone"]))), end='')
     print("")
 

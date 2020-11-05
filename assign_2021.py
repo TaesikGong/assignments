@@ -127,7 +127,7 @@ debug_id = '591aaa'
 """
 Acceptable meeting hours in global time -- these are all hours
 """
-sched_time = [local_to_global(7, 'CST'), local_to_global(23, 'BST')]
+sched_time = [local_to_global(23, 'CST'), local_to_global(18, 'BST')]
 
 """
 # Acceptable working hours
@@ -574,6 +574,7 @@ for iter in range(0, 100):
     for day in sched:
         ihour = 0
         for hour in day:
+
             for id in hour:
 
                 # DEBUG
@@ -595,7 +596,7 @@ for iter in range(0, 100):
                                 "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
                         if (new_hour_idx < 0):
                             continue
-                        if len(sched[canditate_day][new_hour_idx]) < len(hour):
+                        if len(sched[canditate_day][new_hour_idx]) < len(hour): #balance according to the number of papers in one slot
                             if pr:
                                 print(
                                     f"*** DEBUG_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
@@ -611,6 +612,92 @@ for iter in range(0, 100):
             ihour = ihour + 1
         iday = iday + 1
 
+
+def has_dup_reviewer_in_slot(slot):
+    #
+    #input: a list of paper ids assigned to one slot
+    #
+
+    dup_counter = {}
+    overlapped_papers = []
+    for id in slot:
+        for rev in papers[id]['reviewers']:
+            if rev in dup_counter:
+                dup_counter[rev].append(id)
+            else:
+                dup_counter[rev] = [id]
+    for rev in dup_counter:
+        if len(dup_counter[rev]) > 1:
+            overlapped_papers.extend(dup_counter[rev])
+
+    return list(set(overlapped_papers))
+
+"""
+Minimize duplicate reviewers for each hour 
+"""
+iter = 0
+for iter in range(0, 100):
+    iday = 0
+    for day in sched:
+        ihour = 0
+        for hour in day:
+
+            ###############
+            overlapped_papers = has_dup_reviewer_in_slot(hour)
+            ###############
+
+            for id in hour:
+                is_overlapped = True if id in overlapped_papers else False
+
+                # DEBUG
+                pr = (id == debug_id)
+
+                paper = papers[id]
+                moved = False
+
+                if is_overlapped:
+                    for canditate_day in range(0, 2):
+                        paper_hours = get_paper_hours(paper["times"][canditate_day])
+                        if pr:
+                            print(
+                                f"{id}: day/hour={iday}/{ihour} {canditate_day}/{paper_hours} - {paper['times'][canditate_day]}")
+                            print(f"    {hour}")
+                        for new_hour in paper_hours:
+                            new_hour_idx = get_hour_index(new_hour)
+                            if pr:
+                                print(
+                                    f"DEBUG_CANDIDATE_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                    "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
+                            if (new_hour_idx < 0):
+                                continue
+                            if pr:
+                                print(
+                                    f"*** DEBUG_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                    f"{hour}, {sched[canditate_day][new_hour_idx]}")
+
+                            sched[canditate_day][new_hour_idx].append(id)
+
+                            if len(has_dup_reviewer_in_slot(sched[canditate_day][new_hour_idx])) > 0: # if new slot is also infeasible
+                                sched[canditate_day][new_hour_idx].remove(id)
+                            else:
+                                hour.remove(id)
+                                if pr:
+                                    print(f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                                moved = True
+                                break
+                        if moved:
+                            break
+            ihour = ihour + 1
+        iday = iday + 1
+
+
+overlapped_papers = []
+iday = 0
+for day in sched:
+    ihour = 0
+    for hour in day:
+        overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
+print(sorted(list(set(overlapped_papers))))
 
 #######################################################
 """

@@ -72,26 +72,21 @@ List of time zones with a shift from UTC in hours.
 Feel free to add more:
 """
 
-schedule_file = 'Mobicom TPC-schedule_dummy.csv'
+schedule_file = 'mobicom21-pcinfo-timezone.csv'#'Mobicom TPC-schedule_dummy.csv'
 pc_assign_file = 'mobicom21-pcassignments.csv'
 score_file = 'mobicom21-scores.csv'
 
 time_zones = {
     'UTC': 0,
-    'SST': 8,
-    'MDT': -6,
-    'MST': -7,
-    'EDT': -4,
-    'CST': 8,
-    'IST': 5.5,
-    'PDT': -7,
-    'GST': 4,
-    'CET': 2,
     'KST': 9,
-    'BST': 1,
-    'CDT': -5,
-    'PKT': 5,
-    'EST': -5
+    'EST': -5,
+    'CT': -6,
+    'EET': 2,
+    'CET': 1,
+    'CST': -6,
+    'GMT': 0,
+    'GMT-7': -7,
+    'PST': -8,
 }
 
 gc_tz1 = 'EST' #general chair timezone 1
@@ -142,7 +137,7 @@ num_day = 1
 """
 # Acceptable working hours
 """
-default_time = [0, 23]
+default_time = [0, 23.99]
 
 """
 Duration T for discussing one paper (in hour)
@@ -245,8 +240,15 @@ def time_parse(time_str, time_zone):
                 if ":" in hour:
                     a = hour.split(":")
                     time.append(float(a[0]) + float(a[1]) / 60)
-                else:
+                elif hour == '':
+                    time.append(float(local_to_global(default_time[1], time_zone)))
+                elif isinstance(hour, int):
                     time.append(float(hour))
+                else:
+                    print(f'(DEBUG) Weird input in the schedule file. Converting to all available.')
+                    print(f'hour: {hour}')
+                    # time.append(float(local_to_global(default_time[0], time_zone)))
+                    # time.append(float(local_to_global(default_time[1], time_zone)))
         if len(time) == 0:
             if not (cnt == 1):
                 print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
@@ -259,14 +261,30 @@ def time_parse(time_str, time_zone):
                 print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
                 assert (len(time) == 2)
             if neg:
-                if not (cnt == 1 and notimes == 1):
-                    print(
-                        f"\n\nWrong time format in string '{time_str}'. We currently support only one interval with not keyword\n\n")
-                    assert (cnt == 1 and notimes == 1)
+                # if not (cnt == 1 and notimes == 1):
+                #     print(
+                #         f"\n\nWrong time format in string '{time_str}'. We currently support only one interval with not keyword\n\n")
+                #     assert (cnt == 1 and notimes == 1)
+                tmp_times = []
                 if time[0] > default_time[0]:
-                    times.append([local_to_global(default_time[0], time_zone), local_to_global(time[0], time_zone)])
+                    tmp_times.append([local_to_global(default_time[0], time_zone), local_to_global(time[0], time_zone)])
                 if time[1] < default_time[1]:
-                    times.append([local_to_global(time[1], time_zone), local_to_global(default_time[1], time_zone)])
+                    tmp_times.append([local_to_global(time[1], time_zone), local_to_global(default_time[1], time_zone)])
+
+                if cnt >= 2:
+                    import copy
+                    times_t1 = copy.deepcopy(times)
+                    times.clear()
+                    for t1 in times_t1:
+                        for t2 in tmp_times:
+                            inter_t = intersect_time(t1, t2)
+                            if len(inter_t)>0:
+                                times.append(inter_t)
+
+                else:
+                    for t in tmp_times:
+                        times.append(t)
+
             else:
                 times.append(list(map(lambda x: local_to_global(x, time_zone), time)))
 
@@ -464,15 +482,15 @@ reviewers = {}
 
 cnt = 0
 
-with open(schedule_file, newline='') as csvfile:
+with open(schedule_file, newline='', encoding='UTF8') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
     for line in csvr:
         cnt = cnt + 1  # assume header
         if cnt > 1:
-            email = line[1].strip()
-            time_zone = line[8]
-            day_1 = time_parse(line[6], time_zone)
-            day_2 = time_parse(line[7], time_zone)
+            email = line[2].strip()
+            time_zone = line[7]
+            day_1 = time_parse(line[9], time_zone)
+            day_2 = time_parse(line[9], time_zone)
 
             reviewers[email] = {
                 "times": [day_1, day_2],
@@ -820,7 +838,7 @@ for k, v in papers.items():
     else:
         infeas = infeas + 1
 
-print_utc = True
+print_utc = False
 
 print(f"TPC time:")
 print("  {:s}: {:2}-{:2} ".format(gc_tz1, to_str(global_to_local(sched_time[0], gc_tz1)), to_str(global_to_local(sched_time[1], gc_tz1))))
@@ -846,7 +864,7 @@ if print_utc:
     print("  UTC                  UTC   ")
     print("--------            ---------")
 else:
-    print("  {:s}     {:s}                     {:s}     {:s}        ".format(gc_tz1, gc_tz1, gc_tz1, gc_tz2))
+    print("  {:s}     {:s}                     {:s}     {:s}        ".format(gc_tz1, gc_tz2, gc_tz1, gc_tz2))
     print("--------------------            ---------------------")
 
 first_half = [0, 0]

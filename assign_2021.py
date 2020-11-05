@@ -691,13 +691,50 @@ for iter in range(0, 100):
         iday = iday + 1
 
 
+"""
+Get remaining paper ids with duplicate reviewers for each hour 
+"""
 overlapped_papers = []
 iday = 0
 for day in sched:
     ihour = 0
     for hour in day:
         overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
-print(sorted(list(set(overlapped_papers))))
+overlapped_papers = sorted(list(set(overlapped_papers)))
+print('duplicated papers:')
+print(overlapped_papers)
+
+
+
+
+
+"""
+Remove paper ids with duplicate reviewers for each hour 
+"""
+
+iday = 0
+for day in sched:
+    ihour = 0
+    for hour in day:
+        for id in hour:
+            if id in overlapped_papers:
+                hour.remove(id)
+                exception_list.append(id)
+
+
+
+
+overlapped_papers = []
+iday = 0
+for day in sched:
+    ihour = 0
+    for hour in day:
+        overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
+overlapped_papers = sorted(list(set(overlapped_papers)))
+print('duplicated papers:')
+print(overlapped_papers)
+
+
 
 #######################################################
 """
@@ -739,7 +776,9 @@ feas_2 = 0
 infeas = 0
 
 for k, v in papers.items():
-    if v["times"][0] or v["times"][1]:
+    if k in exception_list:
+        infeas+=1
+    elif v["times"][0] or v["times"][1]:
         if v["rev"] == 0:
             feas = feas + 1
         elif v["rev"] == -1:
@@ -917,6 +956,8 @@ print("\n\n")
 print("Time slots for paper with failed reviewer assignments:")
 print("--------------------------------------------")
 for k, v in papers.items():
+    if k in exception_list:
+        continue
     if v["rev"] < 0:
         print("{} ({}): ".format(k, v["rev"]), end="")
 

@@ -90,9 +90,12 @@ time_zones = {
     'KST': 9,
     'BST': 1,
     'CDT': -5,
-    'PKT': 5
+    'PKT': 5,
+    'EST': -5
 }
 
+gc_tz1 = 'EST' #general chair timezone 1
+gc_tz2 = 'KST' #general chair timezone 2
 
 def local_to_global(time, time_zone):
     if isinstance(time, list):
@@ -117,7 +120,7 @@ Debug params. If you want to see more about decisions on paper <debug_id>,
 set detailed_debug = True
 """
 detailed_debug = False
-debug_id = '591aaa'
+debug_id = '40x'
 
 #   8---------------16------------24             8------------16-----------24
 #                   8-------------16-------------24
@@ -127,12 +130,19 @@ debug_id = '591aaa'
 """
 Acceptable meeting hours in global time -- these are all hours
 """
-sched_time = [local_to_global(23, 'CST'), local_to_global(18, 'BST')]
+#8:30AM - 18:30PM EST, Nov 9, 2020 (Monday)
+sched_time = [local_to_global(8.5, 'EST'), local_to_global(18.5, 'EST')]
+
+
+"""
+The number of TPC meeting days
+"""
+num_day = 1
 
 """
 # Acceptable working hours
 """
-default_time = [7, 22]
+default_time = [0, 23]
 
 """
 Duration T for discussing one paper (in hour)
@@ -179,16 +189,22 @@ Index of a slot is its order, starting from 0.
 
 
 def get_hour_index(hour):
-    n = int(hour//1)
-    f = hour%1
-    sub_index = int((f)//slot_dur_in_hour)
 
     if hour >= sched_time[0] and hour < sched_time[1]:
-        return int(n - sched_time[0])*num_slots_per_hour + sub_index
+        n = int((hour - sched_time[0]) //1)
+        f = (hour - sched_time[0]) %1
+        sub_index = int((f) // slot_dur_in_hour)
+        return n*num_slots_per_hour + sub_index
     elif hour >= sched_time[0] + 24 and hour < sched_time[1] + 24:
-        return int(n - sched_time[0] - 24)*num_slots_per_hour + sub_index
+        n = int((hour - sched_time[0] - 24) //1)
+        f = (hour - sched_time[0] - 24) %1
+        sub_index = int((f) // slot_dur_in_hour)
+        return n*num_slots_per_hour + sub_index
     elif hour + 24 >= sched_time[0] and hour + 24 < sched_time[1]:
-        return int(n + 24 - sched_time[0])*num_slots_per_hour + sub_index
+        n = int((hour - sched_time[0] + 24) //1)
+        f = (hour - sched_time[0] + 24) %1
+        sub_index = int((f) // slot_dur_in_hour)
+        return n*num_slots_per_hour + sub_index
     else:
         return -1
 
@@ -339,7 +355,7 @@ The output may be [] if there is no intersection
 
 def _find_best_times(revs):
     result = [[], []]
-    for d in range(0, 2):
+    for d in range(0, num_day):
         times = [sched_time]
         if detailed_debug:
             print(f"Day {d}:")
@@ -525,8 +541,8 @@ Each element of the list represents 1h slot.
 """
 
 sched = [
-    [[] for i in range(num_slots_per_hour * (sched_time[1] - sched_time[0]))],
-    [[] for i in range(num_slots_per_hour * (sched_time[1] - sched_time[0]))]
+    [[] for i in range(int(num_slots_per_hour * (sched_time[1] - sched_time[0])))],
+    [[] for i in range(int(num_slots_per_hour * (sched_time[1] - sched_time[0])))]
 ]
 
 exception_list = []
@@ -582,7 +598,7 @@ for iter in range(0, 100):
 
                 paper = papers[id]
                 moved = False
-                for canditate_day in range(0, 2):
+                for canditate_day in range(0, num_day):
                     paper_hours = get_paper_hours(paper["times"][canditate_day])
                     if pr:
                         print(
@@ -656,7 +672,7 @@ for iter in range(0, 100):
                 moved = False
 
                 if is_overlapped:
-                    for canditate_day in range(0, 2):
+                    for canditate_day in range(0, num_day):
                         paper_hours = get_paper_hours(paper["times"][canditate_day])
                         if pr:
                             print(
@@ -666,7 +682,7 @@ for iter in range(0, 100):
                             new_hour_idx = get_hour_index(new_hour)
                             if pr:
                                 print(
-                                    f"DEBUG_CANDIDATE_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                    f"DEBUG_CANDIDATE_MOVE2: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
                                     "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
                             if (new_hour_idx < 0):
                                 continue
@@ -701,7 +717,7 @@ for day in sched:
     for hour in day:
         overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
 overlapped_papers = sorted(list(set(overlapped_papers)))
-print('duplicated papers:')
+print('papers with duplicate reviewers for a single slot:')
 print(overlapped_papers)
 
 
@@ -731,12 +747,25 @@ for day in sched:
     for hour in day:
         overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
 overlapped_papers = sorted(list(set(overlapped_papers)))
-print('duplicated papers:')
-print(overlapped_papers)
 
 
 
-#######################################################
+
+
+
+
+
+#######################################################################################################################
+def to_str(time):
+    n = int(time // 1)
+    f = int((time %1) * 60)
+    if n == 0:
+        n="00"
+    if f == 0:
+        f="00"
+    return f"{n}:{f}"
+
+
 """
 Copy the final schedule as to papers and reviewers structures
 """
@@ -749,7 +778,7 @@ for ihour in range(0, len(sched[0])):
             papers[id]["slot"] = interv
             papers[id]["day"] = iday
             inter = intersect_times([interv], papers[id]["times"][iday])
-            if len(inter[0]) == 0:
+            if len(inter) ==0 or len(inter[0]) == 0:
                 print(f"It seems that we have a bug - paper {id} has not be assigned a feasible slot: "
                       f"{iday}/{ihour}/{interv} : {papers[id]['times'][iday]} : {inter}")
             assert (len(inter[0]) > 0)
@@ -794,8 +823,8 @@ for k, v in papers.items():
 print_utc = True
 
 print(f"TPC time:")
-print("  HKG: {:2}:00-{:2}:00 ".format(global_to_local(sched_time[0], 'CST'), global_to_local(sched_time[1], 'CST')))
-print("  LON: {:2}:00-{:2}:00 ".format(global_to_local(sched_time[0], 'BST'), global_to_local(sched_time[1], 'BST')))
+print("  {:s}: {:2}-{:2} ".format(gc_tz1, to_str(global_to_local(sched_time[0], gc_tz1)), to_str(global_to_local(sched_time[1], gc_tz1))))
+print("  {:s}: {:2}-{:2} ".format(gc_tz2, to_str(global_to_local(sched_time[0], gc_tz2)), to_str(global_to_local(sched_time[1], gc_tz2))))
 print("")
 print(f"Default working hours: {default_time}\n")
 
@@ -817,7 +846,7 @@ if print_utc:
     print("  UTC                  UTC   ")
     print("--------            ---------")
 else:
-    print("  HGK     LON                     HGK     LON        ")
+    print("  {:s}     {:s}                     {:s}     {:s}        ".format(gc_tz1, gc_tz1, gc_tz1, gc_tz2))
     print("--------------------            ---------------------")
 
 first_half = [0, 0]
@@ -832,10 +861,10 @@ for ihour in range(0, len(sched[0])):
             print(f"{iday} ", end='')
         # print(f"{ihour:2} [{interv[0]:2} {interv[1]:2}] ", end='')
         if print_utc:
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'UTC'), global_to_local(interv[1], 'UTC')), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], 'UTC')), to_str(global_to_local(interv[1], 'UTC'))), end='')
         else:
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], gc_tz1)), to_str(global_to_local(interv[1], gc_tz1))), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], gc_tz2)), to_str(global_to_local(interv[1], gc_tz2))), end='')
         print(f": {len(hour):2} \t\t", end='')
         if print_detail:
             print("")
@@ -868,23 +897,23 @@ print("Paper assignment per slot\n")
 iday = 0
 for day in sched:
     if iday == 0:
-        print("\n     MON")
+        print("\n     DAY1")
     else:
-        print("\n     TUE")
+        print("\n     DAY2")
     if print_utc:
         print("  UTC       ")
         print("--------    ")
     else:
-        print("  HGK     LON           ")
+        print("  {:s}     {:s}           ".format(gc_tz1, gc_tz2))
         print("--------------------    ")
     for ihour in range(0, len(sched[0])):
         hour = day[ihour]
         interv = get_index_hours(ihour)
         if print_utc:
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'UTC'), global_to_local(interv[1], 'UTC')), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], 'UTC')), to_str(global_to_local(interv[1], 'UTC'))), end='')
         else:
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-            print("[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], gc_tz1)), to_str(global_to_local(interv[1], gc_tz1))), end='')
+            print("[{:2}-{:2}] ".format(to_str(global_to_local(interv[0], gc_tz2)), to_str(global_to_local(interv[1], gc_tz2))), end='')
 
         for id in hour:
             discussion_order.append(id)
@@ -913,8 +942,8 @@ if print_paper_assignment_per_slot:
 
         day = v["day"]
         interv = v["slot"]
-        print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-        print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz1, to_str(global_to_local(interv[0], gc_tz1)), to_str(global_to_local(interv[1], gc_tz1))), end='')
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz2, to_str(global_to_local(interv[0], gc_tz2)), to_str(global_to_local(interv[1], gc_tz2))), end='')
         print("")
         for r in v["reviewers"]:
             tz = reviewers[r]["time_zone"]
@@ -936,16 +965,16 @@ if print_paper_assignment_per_slot:
             for exp, score in reviewers[r]["papers"][k].items():
                 print(f"{exp}: {score} ", end="")
 
-            print(" assigned={}, {}-{} {}, \tavailable Mon=".format(
-                "Mon" if day == 0 else "Tue",
-                global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+            print(" assigned={}, {}-{} {}, \tavailable DAY1=".format(
+                "Day1" if day == 0 else "Day2",
+                to_str(global_to_local(interv[0], tz)), to_str(global_to_local(interv[1], tz)), tz), end="")
 
             for i in reviewers[r]["times"][0]:
-                t0 = list(map(lambda x: global_to_local(x, tz), i))
+                t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
                 print(f"{t0} ", end="")
-            print("   Tue=", end="")
+            print("   Day2=", end="")
             for i in reviewers[r]["times"][1]:
-                t0 = list(map(lambda x: global_to_local(x, tz), i))
+                t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
                 print(f"{t0} ", end="")
             print("")
 
@@ -963,8 +992,8 @@ for k, v in papers.items():
 
         day = v["day"]
         interv = v["slot"]
-        print("CST=[{:2} {:2}] ".format(global_to_local(interv[0], 'CST'), global_to_local(interv[1], 'CST')), end='')
-        print("BST=[{:2} {:2}] ".format(global_to_local(interv[0], 'BST'), global_to_local(interv[1], 'BST')), end='')
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz1, to_str(global_to_local(interv[0], gc_tz1)), to_str(global_to_local(interv[1], gc_tz1))), end='')
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz2, to_str(global_to_local(interv[0],  gc_tz2)), to_str(global_to_local(interv[1], gc_tz2))), end='')
         print("")
         for r in v["reviewers"]:
             tz = reviewers[r]["time_zone"]
@@ -984,16 +1013,16 @@ for k, v in papers.items():
                 for exp, score in reviewers[r]["papers"][k].items():
                     print(f"{exp}: {score} ", end="")
 
-                print(" assigned={}, {}-{} {}, \tavailable Mon=".format(
-                    "Mon" if day == 0 else "Tue",
-                    global_to_local(interv[0], tz), global_to_local(interv[1], tz), tz), end="")
+                print(" assigned={}, {}-{} {}, \tavailable DAY1=".format(
+                    "DAY1" if day == 0 else "DAY2",
+                    to_str(global_to_local(interv[0], tz)), to_str(global_to_local(interv[1], tz)), tz), end="")
 
                 for i in reviewers[r]["times"][0]:
-                    t0 = list(map(lambda x: global_to_local(x, tz), i))
+                    t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
                     print(f"{t0} ", end="")
-                print("   Tue=", end="")
+                print("   DAY2=", end="")
                 for i in reviewers[r]["times"][1]:
-                    t0 = list(map(lambda x: global_to_local(x, tz), i))
+                    t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
                     print(f"{t0} ", end="")
                 print("")
 
@@ -1012,15 +1041,15 @@ for r, v in reviewers.items():
     print(f"{r}, ({tz} {tzs}), ", end="")
     for s in v["slots"]:
         if s["day"] == 0:
-            print("[{:2} {:2}] ".format(
-                global_to_local(s["slot"][0], v["time_zone"]),
-                global_to_local(s["slot"][1], v["time_zone"])), end='')
+            print("[{:2}-{:2}] ".format(
+                to_str(global_to_local(s["slot"][0], v["time_zone"])),
+                to_str(global_to_local(s["slot"][1], v["time_zone"]))), end='')
     print(f", ", end="")
     for s in v["slots"]:
         if s["day"] == 1:
-            print("[{:2} {:2}] ".format(
-                global_to_local(s["slot"][0], v["time_zone"]),
-                global_to_local(s["slot"][1], v["time_zone"])), end='')
+            print("[{:2}-{:2}] ".format(
+                to_str((s["slot"][0], v["time_zone"])),
+                to_str(global_to_local(s["slot"][1], v["time_zone"]))), end='')
     print("")
 
 """
@@ -1045,9 +1074,9 @@ print("--------------------------------------------\n")
 print("pid,action,tag")
 cnt = 10
 for paper_id in discussion_order:
-    starting_slot = global_to_local(papers[paper_id]["slot"][0], 'UTC')
+    starting_slot = to_str(global_to_local(papers[paper_id]["slot"][0], 'UTC'))
     starting_slot = starting_slot if not starting_slot == 23 else -1
-    day = "Mon" if papers[paper_id]["day"] == 0 else "Tue"
+    day = "DAY1" if papers[paper_id]["day"] == 0 else "DAY2"
     print(f"{paper_id},tag,schedule_{day}_UTC_{starting_slot}")
     # Leave enough gap to be able to squeeze papers in between if needed
     cnt = cnt + 10

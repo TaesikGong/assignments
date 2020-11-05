@@ -134,6 +134,13 @@ sched_time = [local_to_global(7, 'CST'), local_to_global(23, 'BST')]
 """
 default_time = [7, 22]
 
+"""
+Duration T for discussing one paper (in hour)
+Currently support T such that 1/T is a natural number 
+"""
+slot_dur_in_hour = 0.25 # 15min
+num_slots_per_hour = int((1 / slot_dur_in_hour))
+
 # Use fixed pseudo-random seed in optimization
 # for easier experimentation and debugging
 random.seed(10)
@@ -149,9 +156,16 @@ def similar(p1, p2):
 
 
 def get_paper_hours(times):
+
+    def _drange(start, stop, step):
+        r = start
+        while r < stop:
+            yield r
+            r += step
+
     hours = []
     for time in times:
-        h = range(round(time[0]), round(time[1]))
+        h = _drange(time[0], time[1], 0.25)
         h = list(map(lambda x: x % 24, h))
         hours.extend(h)
     return hours
@@ -165,21 +179,28 @@ Index of a slot is its order, starting from 0.
 
 
 def get_hour_index(hour):
+    n = int(hour//1)
+    f = hour%1
+    sub_index = int((f)//slot_dur_in_hour)
+
     if hour >= sched_time[0] and hour < sched_time[1]:
-        return hour - sched_time[0]
+        return int(n - sched_time[0])*num_slots_per_hour + sub_index
     elif hour >= sched_time[0] + 24 and hour < sched_time[1] + 24:
-        return hour - sched_time[0] - 24
+        return int(n - sched_time[0] - 24)*num_slots_per_hour + sub_index
     elif hour + 24 >= sched_time[0] and hour + 24 < sched_time[1]:
-        return hour + 24 - sched_time[0]
+        return int(n + 24 - sched_time[0])*num_slots_per_hour + sub_index
     else:
         return -1
 
-
 def get_index_hours(index):
-    if not (index >= 0 and index < sched_time[1] - sched_time[0] + 1):
+
+    sub_index = int(((sched_time[1] - sched_time[0])%1)//slot_dur_in_hour)
+    if not (index >= 0 and index < (sched_time[1] - sched_time[0]) * num_slots_per_hour + sub_index + 1):
         print(f"Wrong index {index}, has to be in [{sched_time[0]}, {sched_time[1]}]")
         assert (index >= 0 and index < sched_time[1])
-    return [index + sched_time[0], index + sched_time[0] + 1]
+
+    converted = index//num_slots_per_hour + (index%num_slots_per_hour) * slot_dur_in_hour
+    return [converted + sched_time[0], converted + sched_time[0] + slot_dur_in_hour]
 
 
 def check_feas_in_local_time(assignment, avail_list):
@@ -233,15 +254,34 @@ def time_parse(time_str, time_zone):
             else:
                 times.append(list(map(lambda x: local_to_global(x, time_zone), time)))
 
+    def _ceil(t):
+        n = t // 1 #natural number part
+        f = t % 1 #float part
+        for i in range(int(1/slot_dur_in_hour)):
+            if slot_dur_in_hour*(i) < f and f < slot_dur_in_hour*(i+1):
+                return n + slot_dur_in_hour*(i+1)
+            elif slot_dur_in_hour*(i) == f:
+                return t
+
+    def _floor(t):
+        n = t // 1 #natural number part
+        f = t % 1 #float part
+        for i in range(int(1/slot_dur_in_hour)):
+            if slot_dur_in_hour*(i) <= f and f <= slot_dur_in_hour*(i+1):
+                return n + slot_dur_in_hour*(i)
+            elif slot_dur_in_hour*(i) == f:
+                return t
+
     for t in times:
-        t[0], t[1] = math.ceil(t[0]), math.floor(t[
-                                                     1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
+        t[0], t[1] = _ceil(t[0]), _floor(t[1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
+    # for t in times:
+        # t[0], t[1] = math.ceil(t[0]), math.floor(t[1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
 
     return times
 
 
 def check_empty(time):
-    return [] if time[0] == time[1] else time
+    return [] if time[1]-time[0] < slot_dur_in_hour else time #TODO: candidate for 15min update?
 
 
 def intersect_time(time1, time2):
@@ -375,7 +415,7 @@ def find_best_times(paper_id):
     revs, must_revs = sort_reviewers(paper_id)
     if detailed_debug:
         print("\n")
-    result = _find_best_times(revs)
+    result = _find_best_times(revs) # initial intersection
     if detailed_debug:
         print(f"F0: {result}\n")
     if not result[0] and not result[1]:
@@ -483,9 +523,10 @@ Create and optimize schedule.
 A schedule is a list of two lists(arrays), one for each day. 
 Each element of the list represents 1h slot. 
 """
+
 sched = [
-    [[] for i in range(sched_time[1] - sched_time[0])],
-    [[] for i in range(sched_time[1] - sched_time[0])]
+    [[] for i in range(num_slots_per_hour * (sched_time[1] - sched_time[0]))],
+    [[] for i in range(num_slots_per_hour * (sched_time[1] - sched_time[0]))]
 ]
 
 exception_list = []
@@ -500,7 +541,7 @@ for k, v in papers.items():
     day = 0
 
     if v["times"][0] and v["times"][1]:
-        day = random.randint(0, 1)
+        day = random.randint(0, 1) #TODO: prefers day zero
     elif v["times"][0]:
         day = 0
     elif v["times"][1]:
@@ -510,7 +551,7 @@ for k, v in papers.items():
         continue
         # assert(False) # no overlapping time schedule for all reviewers
 
-    hour = round(v["times"][day][0][0])
+    hour = v["times"][day][0][0]
     index = get_hour_index(hour)
     if index < 0:
         print(f"Impossible initial assignment for paper {k}: "
@@ -570,6 +611,8 @@ for iter in range(0, 100):
             ihour = ihour + 1
         iday = iday + 1
 
+
+#######################################################
 """
 Copy the final schedule as to papers and reviewers structures
 """

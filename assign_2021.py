@@ -115,7 +115,7 @@ Debug params. If you want to see more about decisions on paper <debug_id>,
 set detailed_debug = True
 """
 detailed_debug = False
-debug_id = '40x'
+debug_id = '197x'
 
 #   8---------------16------------24             8------------16-----------24
 #                   8-------------16-------------24
@@ -126,7 +126,7 @@ debug_id = '40x'
 Acceptable meeting hours in global time -- these are all hours
 """
 #8:30AM - 18:30PM EST, Nov 9, 2020 (Monday)
-sched_time = [local_to_global(8.5, 'EST'), local_to_global(18.5, 'EST')]
+sched_time = [local_to_global(8.75, 'EST'), local_to_global(18.5, 'EST')]
 
 
 """
@@ -143,7 +143,7 @@ default_time = [0, 23.99]
 Duration T for discussing one paper (in hour)
 Currently support T such that 1/T is a natural number 
 """
-slot_dur_in_hour = 0.25 # 15min
+slot_dur_in_hour = 0.5 # 15min
 num_slots_per_hour = int((1 / slot_dur_in_hour))
 
 # Use fixed pseudo-random seed in optimization
@@ -170,7 +170,7 @@ def get_paper_hours(times):
 
     hours = []
     for time in times:
-        h = _drange(time[0], time[1], 0.25)
+        h = _drange(time[0], time[1], slot_dur_in_hour)
         h = list(map(lambda x: x % 24, h))
         hours.extend(h)
     return hours
@@ -223,6 +223,24 @@ def check_feas_in_local_time(assignment, avail_list):
 
     return checked
 
+
+def _ceil(t):
+    n = t // 1 #natural number part
+    f = t % 1 #float part
+    for i in range(int(1/slot_dur_in_hour)):
+        if slot_dur_in_hour*(i) < f and f < slot_dur_in_hour*(i+1):
+            return n + slot_dur_in_hour*(i+1)
+        elif slot_dur_in_hour*(i) == f:
+            return t
+
+def _floor(t):
+    n = t // 1 #natural number part
+    f = t % 1 #float part
+    for i in range(int(1/slot_dur_in_hour)):
+        if slot_dur_in_hour*(i) <= f and f <= slot_dur_in_hour*(i+1):
+            return n + slot_dur_in_hour*(i)
+        elif slot_dur_in_hour*(i) == f:
+            return t
 
 def time_parse(time_str, time_zone):
     times = []
@@ -286,23 +304,6 @@ def time_parse(time_str, time_zone):
             else:
                 times.append(list(map(lambda x: local_to_global(x, time_zone), time)))
 
-    def _ceil(t):
-        n = t // 1 #natural number part
-        f = t % 1 #float part
-        for i in range(int(1/slot_dur_in_hour)):
-            if slot_dur_in_hour*(i) < f and f < slot_dur_in_hour*(i+1):
-                return n + slot_dur_in_hour*(i+1)
-            elif slot_dur_in_hour*(i) == f:
-                return t
-
-    def _floor(t):
-        n = t // 1 #natural number part
-        f = t % 1 #float part
-        for i in range(int(1/slot_dur_in_hour)):
-            if slot_dur_in_hour*(i) <= f and f <= slot_dur_in_hour*(i+1):
-                return n + slot_dur_in_hour*(i)
-            elif slot_dur_in_hour*(i) == f:
-                return t
 
     for t in times:
         t[0], t[1] = _ceil(t[0]), _floor(t[1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
@@ -475,6 +476,7 @@ def find_best_times(paper_id):
     return result, 0
 
 
+sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
 papers = {}
 reviewers = {}
 
@@ -644,7 +646,7 @@ for iter in range(0, 100):
             ihour = ihour + 1
         iday = iday + 1
 
-
+''' # codes for removing overlapping reviewers for each session
 def has_dup_reviewer_in_slot(slot):
     #
     #input: a list of paper ids assigned to one slot
@@ -665,7 +667,7 @@ def has_dup_reviewer_in_slot(slot):
     return list(set(overlapped_papers))
 
 """
-Minimize duplicate reviewers for each hour 
+Minimize duplicate reviewers for each hour
 """
 iter = 0
 for iter in range(0, 100):
@@ -724,7 +726,7 @@ for iter in range(0, 100):
 
 
 """
-Get remaining paper ids with duplicate reviewers for each hour 
+Get remaining paper ids with duplicate reviewers for each hour
 """
 overlapped_papers = []
 iday = 0
@@ -741,7 +743,7 @@ print(overlapped_papers)
 
 
 """
-Remove paper ids with duplicate reviewers for each hour 
+Remove paper ids with duplicate reviewers for each hour
 """
 
 iday = 0
@@ -763,7 +765,7 @@ for day in sched:
     for hour in day:
         overlapped_papers.extend(has_dup_reviewer_in_slot(hour))
 overlapped_papers = sorted(list(set(overlapped_papers)))
-
+'''
 
 
 

@@ -139,6 +139,7 @@ num_day = 1
 """
 default_time = [0, 23.99]
 
+
 """
 Duration T for discussing one paper (in hour)
 Currently support T such that 1/T is a natural number 
@@ -149,6 +150,16 @@ num_slots_per_hour = int((1 / slot_dur_in_hour))
 # Use fixed pseudo-random seed in optimization
 # for easier experimentation and debugging
 random.seed(1)
+
+
+"""
+Intentionally make time slots available for a specific time slot (by omitting reviewers)
+"""
+
+weight_time = [[local_to_global(10,'EST'), local_to_global(11,'EST')]]
+weight_time_enabled = True
+
+
 
 """
 Various helper functions:
@@ -445,6 +456,7 @@ If even that doesn't work, return [].
 
 
 def find_best_times(paper_id):
+    rev = 0
     revs, must_revs = sort_reviewers(paper_id)
     if detailed_debug:
         print("\n")
@@ -460,7 +472,8 @@ def find_best_times(paper_id):
                 if detailed_debug:
                     print(f"F1: {result}\n")
                 if result[0] or result[1]:
-                    return result, -1
+                    rev = -1
+                    break
     if not result[0] and not result[1]:
         for r in revs:
             for r1 in revs:
@@ -472,8 +485,39 @@ def find_best_times(paper_id):
                     if detailed_debug:
                         print(f"F2: {result}\n")
                     if result[0] or result[1]:
-                        return result, -2
-    return result, 0
+                        rev = -2
+                        break
+
+    if weight_time_enabled:
+        if len(intersect_times(result[0], weight_time)) == 0 and rev > -2:
+            if rev == 0:
+                for r in revs:
+                    if not r in must_revs:
+                        new_rev = revs.copy()
+                        new_rev.remove(r)
+                        tmp_result = _find_best_times(new_rev)
+                        if detailed_debug:
+                            print(f"F1: {tmp_result}\n")
+                        if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
+                            rev = -1
+                            result = tmp_result
+                            break
+            if rev == -1 and len(intersect_times(result[0], weight_time)) == 0:
+                for r in revs:
+                    for r1 in revs:
+                        if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
+                            new_rev = revs.copy()
+                            new_rev.remove(r)
+                            new_rev.remove(r1)
+                            tmp_result = _find_best_times(new_rev)
+                            if detailed_debug:
+                                print(f"F2: {result}\n")
+                            if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
+                                rev = -2
+                                result = tmp_result
+                                break
+
+    return result, rev
 
 
 sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]

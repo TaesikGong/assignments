@@ -143,12 +143,12 @@ default_time = [0, 23.99]
 Duration T for discussing one paper (in hour)
 Currently support T such that 1/T is a natural number 
 """
-slot_dur_in_hour = 0.5 # 15min
+slot_dur_in_hour = 1 # 15min
 num_slots_per_hour = int((1 / slot_dur_in_hour))
 
 # Use fixed pseudo-random seed in optimization
 # for easier experimentation and debugging
-random.seed(10)
+random.seed(1)
 
 """
 Various helper functions:
@@ -480,27 +480,30 @@ sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
 papers = {}
 reviewers = {}
 
+def read_csv(encoding):
+    cnt = 0
+    with open(schedule_file, newline='', encoding=encoding) as csvfile:
+        csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
+        for line in csvr:
+            cnt = cnt + 1  # assume header
+            if cnt > 1:
+                email = line[2].strip()
+                time_zone = line[7]
+                day_1 = time_parse(line[9], time_zone)
+                day_2 = time_parse(line[9], time_zone)
+
+                reviewers[email] = {
+                    "times": [day_1, day_2],
+                    "time_zone": time_zone,
+                    "papers": {},
+                    "slots": []
+                }
+try:
+    read_csv('utf-8')
+except UnicodeDecodeError as e:
+    read_csv('ANSI')
+
 cnt = 0
-
-with open(schedule_file, newline='', encoding='UTF8') as csvfile:
-    csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
-    for line in csvr:
-        cnt = cnt + 1  # assume header
-        if cnt > 1:
-            email = line[2].strip()
-            time_zone = line[7]
-            day_1 = time_parse(line[9], time_zone)
-            day_2 = time_parse(line[9], time_zone)
-
-            reviewers[email] = {
-                "times": [day_1, day_2],
-                "time_zone": time_zone,
-                "papers": {},
-                "slots": []
-            }
-
-cnt = 0
-
 with open(pc_assign_file, newline='') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')
     for line in csvr:

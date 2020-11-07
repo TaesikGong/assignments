@@ -2,6 +2,7 @@ import csv
 import json
 import random
 import math
+import copy
 
 """
 
@@ -293,7 +294,7 @@ def check_feas_in_local_time(assignment, avail_list):
 
         else: # ['22:00', '1:00']
             if assignment[0] < assignment [1]: #22:00-23:00
-                if (assignment[0] >= interval[0] and assignment[1] <= interval[1]+24) or (assignment[0] >= interval[0]-24 and assignment[1] <= interval[1] + 24): # 22:00-23:00 is in ['22:00', '1:00'], # 00:00-1:00 is in ['23:00', '3:00']
+                if (assignment[0] >= interval[0] and assignment[1] <= interval[1]+24) or (assignment[0] >= interval[0]-24 and assignment[1] <= interval[1]): # 22:00-23:00 is in ['22:00', '1:00'], # 00:00-1:00 is in ['23:00', '3:00']
                     checked = True
                     break
             else:#23:00-00:00
@@ -364,7 +365,6 @@ def time_parse(time_str, time_zone):
                     tmp_times.append([local_to_global(time[1], time_zone), sched_time[1]])
 
                 if cnt >= 2:
-                    import copy
                     times_t1 = copy.deepcopy(times)
                     times.clear()
                     for t1 in times_t1:
@@ -525,15 +525,21 @@ If even that doesn't work, return [].
 """
 
 
-def find_best_times(paper_id):
+def find_best_times(paper_id, rev_remove_num=0):
     rev = 0
     revs, must_revs = sort_reviewers(paper_id)
-    if detailed_debug:
-        print("\n")
-    result = _find_best_times(revs) # initial intersection
-    if detailed_debug:
-        print(f"F0: {result}\n")
-    if not result[0] and not result[1]:
+
+    def _len_slot(result):
+        sum = 0
+        for res in result:
+            if res:
+                for t in res:
+                    sum += t[1]-t[0]
+        return sum
+
+    current_best = 0
+    best_res = None
+    if rev_remove_num == 1:
         for r in revs:
             if not r in must_revs:
                 new_rev = revs.copy()
@@ -542,9 +548,12 @@ def find_best_times(paper_id):
                 if detailed_debug:
                     print(f"F1: {result}\n")
                 if result[0] or result[1]:
-                    rev = -1
-                    break
-    if not result[0] and not result[1]:
+                    if current_best < _len_slot(result):
+                        current_best = _len_slot(result)
+                        rev = -1
+                        best_res=result
+        return best_res, rev
+    elif rev_remove_num == 2:
         for r in revs:
             for r1 in revs:
                 if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
@@ -555,37 +564,70 @@ def find_best_times(paper_id):
                     if detailed_debug:
                         print(f"F2: {result}\n")
                     if result[0] or result[1]:
-                        rev = -2
+                        if current_best < _len_slot(result):
+                            current_best = _len_slot(result)
+                            rev = -2
+                            best_res=result
+        return best_res, rev
+    else:
+        if detailed_debug:
+            print("\n")
+        result = _find_best_times(revs) # initial intersection
+        if detailed_debug:
+            print(f"F0: {result}\n")
+        if not result[0] and not result[1]:
+            for r in revs:
+                if not r in must_revs:
+                    new_rev = revs.copy()
+                    new_rev.remove(r)
+                    result = _find_best_times(new_rev)
+                    if detailed_debug:
+                        print(f"F1: {result}\n")
+                    if result[0] or result[1]:
+                        rev = -1
                         break
-
-    if weight_time_enabled: #TODO: bug, removed reviewers are printed as "ok" in the final assignment
-        if len(intersect_times(result[0], weight_time)) == 0 and rev > -2:
-            if rev == 0:
-                for r in revs:
-                    if not r in must_revs:
+        if not result[0] and not result[1]:
+            for r in revs:
+                for r1 in revs:
+                    if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
                         new_rev = revs.copy()
                         new_rev.remove(r)
-                        tmp_result = _find_best_times(new_rev)
+                        new_rev.remove(r1)
+                        result = _find_best_times(new_rev)
                         if detailed_debug:
-                            print(f"F1: {tmp_result}\n")
-                        if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
-                            rev = -1
-                            result = tmp_result
+                            print(f"F2: {result}\n")
+                        if result[0] or result[1]:
+                            rev = -2
                             break
-            if rev == -1 and len(intersect_times(result[0], weight_time)) == 0:
-                for r in revs:
-                    for r1 in revs:
-                        if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
-                            new_rev = revs.copy()
-                            new_rev.remove(r)
-                            new_rev.remove(r1)
-                            tmp_result = _find_best_times(new_rev)
-                            if detailed_debug:
-                                print(f"F2: {result}\n")
-                            if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
-                                rev = -2
-                                result = tmp_result
-                                break
+        #
+        # if weight_time_enabled: #TODO: bug, removed reviewers are printed as "ok" in the final assignment
+        #     if len(intersect_times(result[0], weight_time)) == 0 and rev > -2:
+        #         if rev == 0:
+        #             for r in revs:
+        #                 if not r in must_revs:
+        #                     new_rev = revs.copy()
+        #                     new_rev.remove(r)
+        #                     tmp_result = _find_best_times(new_rev)
+        #                     if detailed_debug:
+        #                         print(f"F1: {tmp_result}\n")
+        #                     if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
+        #                         rev = -1
+        #                         result = tmp_result
+        #                         break
+        #         if rev == -1 and len(intersect_times(result[0], weight_time)) == 0:
+        #             for r in revs:
+        #                 for r1 in revs:
+        #                     if not r == r1 and (not r in must_revs) and (not r1 in must_revs):
+        #                         new_rev = revs.copy()
+        #                         new_rev.remove(r)
+        #                         new_rev.remove(r1)
+        #                         tmp_result = _find_best_times(new_rev)
+        #                         if detailed_debug:
+        #                             print(f"F2: {result}\n")
+        #                         if (tmp_result[0] or tmp_result[1]) and len(intersect_times(tmp_result[0], weight_time)) != 0 :
+        #                             rev = -2
+        #                             result = tmp_result
+        #                             break
 
     return result, rev
 
@@ -605,7 +647,7 @@ def read_csv(encoding):
                 time_zone = line[7]
 
                 day_1 = time_parse(line[9], time_zone)
-                print(email, day_1)
+                # print(email, day_1)
                 day_2 = time_parse(line[9], time_zone)
 
                 reviewers[email] = {
@@ -718,7 +760,7 @@ for k, v in papers.items():
         print(f"DEBUG_INITIAL: id={k} day={day} int_start={v['times'][day][0][0]} hour={hour} hour_index={index}")
 
 """
-Optimize schedule by moving papers around to a different slot 
+1. Optimize schedule by moving papers around to a different slot 
 if that reduces the maximum load across the old and new slot. 
 This is a simple heuristic. We just repeat it a few times and it seems to work fine. 
 """
@@ -765,6 +807,193 @@ for iter in range(0, 100):
                         break
             ihour = ihour + 1
         iday = iday + 1
+
+
+
+"""
+2. Move papers to meet the maximum allowed papers by removing some reviewers 
+"""
+
+max_paper_per_slot = 5
+iter = 0
+for iter in range(1):
+    iday = 0
+    for day in sched:
+        ihour = 0
+        for hour in day:
+
+            rev_remove_num = 0
+            while len(hour) > max_paper_per_slot:
+                rev_remove_num += 1
+                if rev_remove_num > 2:
+                    break
+
+                for id in hour:
+
+                    # DEBUG
+                    pr = (id == debug_id)
+
+                    paper = papers[id]
+                    moved = False
+                    for canditate_day in range(0, num_day):
+
+                        pre_times, pre_rev = copy.deepcopy(paper["times"]), copy.deepcopy(paper["rev"])
+                        paper["times"], paper["rev"] = find_best_times(id, rev_remove_num)
+                        paper_hours = get_paper_hours(paper["times"][canditate_day])
+
+                        if pr:
+                            print(
+                                f"{id}: day/hour={iday}/{ihour} {canditate_day}/{paper_hours} - {paper['times'][canditate_day]}")
+                            print(f"    {hour}")
+                        for new_hour in paper_hours:
+                            new_hour_idx = get_hour_index(new_hour)
+                            if pr:
+                                print(
+                                    f"DEBUG_CANDIDATE_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                    "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
+                            if (new_hour_idx < 0):
+                                continue
+                            if len(sched[canditate_day][new_hour_idx]) < max_paper_per_slot: #balance according to the number of papers in one slot
+                                if pr:
+                                    print(
+                                        f"*** DEBUG_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                        f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                                sched[canditate_day][new_hour_idx].append(id)
+                                hour.remove(id)
+                                if pr:
+                                    print(f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                                moved = True
+                                break
+                        if moved:
+                            break
+                        else:
+
+                            paper["times"], paper["rev"] = copy.deepcopy(pre_times), copy.deepcopy(pre_rev)
+                            # paper["times"], paper["rev"] = find_best_times(id) # restore
+            ihour = ihour + 1
+        iday = iday + 1
+
+
+
+"""
+3. Move papers to force balanced slots by removing some reviewers 
+"""
+
+iter = 0
+for iter in range(1):
+    iday = 0
+    for day in sched:
+        ihour = 0
+
+        for hour in day:
+            rev_remove_num = 1
+
+            for id in hour:
+
+                # DEBUG
+                pr = (id == debug_id)
+
+                paper = papers[id]
+                moved = False
+                for canditate_day in range(0, num_day):
+                    pre_times, pre_rev = copy.deepcopy(paper["times"]), copy.deepcopy(paper["rev"])
+                    paper["times"], paper["rev"] = find_best_times(id, rev_remove_num)
+                    paper_hours = get_paper_hours(paper["times"][canditate_day])
+
+                    if pr:
+                        print(
+                            f"{id}: day/hour={iday}/{ihour} {canditate_day}/{paper_hours} - {paper['times'][canditate_day]}")
+                        print(f"    {hour}")
+                    for new_hour in paper_hours:
+                        new_hour_idx = get_hour_index(new_hour)
+                        if pr:
+                            print(
+                                f"DEBUG_CANDIDATE_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
+                        if (new_hour_idx < 0):
+                            continue
+                        if len(sched[canditate_day][new_hour_idx])+1 < len(hour): #balance according to the number of papers in one slot
+                            if pr:
+                                print(
+                                    f"*** DEBUG_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                    f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                            sched[canditate_day][new_hour_idx].append(id)
+                            hour.remove(id)
+                            if pr:
+                                print(f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                            moved = True
+                            break
+                    if moved:
+                        break
+                    else:
+                        paper["times"], paper["rev"] = copy.deepcopy(pre_times), copy.deepcopy(pre_rev)
+            ihour = ihour + 1
+        iday = iday + 1
+
+
+"""
+4. Move papers to allow two papers in the target slot by removing some reviewers 
+"""
+
+iter = 0
+target_idx = 3
+target_num_paper = 2
+for iter in range(1):
+    for day in sched:
+        ihour = 0
+
+        for i, hour in enumerate(day):
+
+            if i ==target_idx:
+                rev_remove_num = 0
+                while len(hour) > target_num_paper:
+                    rev_remove_num +=1
+                    if rev_remove_num > 3:
+                        break
+
+                    for id in hour:
+
+                        # DEBUG
+                        pr = (id == debug_id)
+                        paper = papers[id]
+                        moved = False
+                        for canditate_day in range(0, num_day):
+                            pre_times, pre_rev = copy.deepcopy(paper["times"]), copy.deepcopy(paper["rev"])
+                            paper["times"], paper["rev"] = find_best_times(id, rev_remove_num)
+                            paper_hours = get_paper_hours(paper["times"][canditate_day])
+
+                            if pr:
+                                print(
+                                    f"{id}: day/hour={iday}/{ihour} {canditate_day}/{paper_hours} - {paper['times'][canditate_day]}")
+                                print(f"    {hour}")
+                            for new_hour in paper_hours:
+                                new_hour_idx = get_hour_index(new_hour)
+                                if pr:
+                                    print(
+                                        f"DEBUG_CANDIDATE_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                        "old_len={} new_len={}".format(len(hour), len(sched[canditate_day][new_hour_idx])))
+                                if (new_hour_idx < 0):
+                                    continue
+                                if len(sched[canditate_day][new_hour_idx]) < max_paper_per_slot: #balance according to the number of papers in one slot
+                                    if pr:
+                                        print(
+                                            f"*** DEBUG_MOVE: id={id} old_day={iday} old_hour={ihour} new_day={canditate_day} new_hour={new_hour}/{new_hour_idx} "
+                                            f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                                    sched[canditate_day][new_hour_idx].append(id)
+                                    hour.remove(id)
+                                    if pr:
+                                        print(f"{hour}, {sched[canditate_day][new_hour_idx]}")
+                                    moved = True
+                                    break
+                            if moved:
+                                break
+                            else:
+                                paper["times"], paper["rev"] = copy.deepcopy(pre_times), copy.deepcopy(pre_rev)
+            ihour = ihour + 1
+        iday = iday + 1
+
+
+
 
 ''' # codes for removing overlapping reviewers for each session
 def has_dup_reviewer_in_slot(slot):

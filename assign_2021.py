@@ -92,17 +92,71 @@ time_zones = {
 gc_tz1 = 'EST' #general chair timezone 1
 gc_tz2 = 'KST' #general chair timezone 2
 
-def local_to_global(time, time_zone):
+"""
+Duration T for discussing one paper (in hour)
+Currently support T such that 1/T is a natural number 
+"""
+slot_dur_in_hour = 1 # 15min
+num_slots_per_hour = int((1 / slot_dur_in_hour))
+
+
+def _ceil(t):
+    n = t // 1 #natural number part
+    f = t % 1 #float part
+    for i in range(int(1/slot_dur_in_hour)):
+        if slot_dur_in_hour*(i) < f and f < slot_dur_in_hour*(i+1):
+            return n + slot_dur_in_hour*(i+1)
+        elif slot_dur_in_hour*(i) == f:
+            return t
+
+def _floor(t):
+    n = t // 1 #natural number part
+    f = t % 1 #float part
+    for i in range(int(1/slot_dur_in_hour)):
+        if slot_dur_in_hour*(i) <= f and f <= slot_dur_in_hour*(i+1):
+            return n + slot_dur_in_hour*(i)
+        elif slot_dur_in_hour*(i) == f:
+            return t
+
+
+def init_local_to_global(time, time_zone):
     if isinstance(time, list):
+        t = list(map(lambda x: x + 9 - time_zones[time_zone], time))
         return list(map(lambda x: x + 9 - time_zones[time_zone], time))
     else:
         return time + 9 - time_zones[time_zone]
+
+
+def local_to_global(time, time_zone):
+    if isinstance(time, list):
+        t = list(map(lambda x: x + 9 - time_zones[time_zone], time))
+        if t[1] < sched_time[0]:
+            return [t[0]+24, t[1]+24]
+        else:
+            return t
+        # return list(map(lambda x: x + 9 - time_zones[time_zone], time))
+    else:
+        t = time + 9 - time_zones[time_zone]
+        if t < sched_time[0]:
+            return t+24
+        else:
+            return t
+
+        # return time + 9 - time_zones[time_zone]
     # return time
 
 
 def global_to_local(time, time_zone):
     if isinstance(time, list):
-        return list(map(lambda x: (x - 9 + time_zones[time_zone]) % 24, time))
+        glob = []
+        assert(len(time) == 2)
+        for i, t in enumerate(time):
+            if i == 1 and (t - 9 + time_zones[time_zone]) == 24:
+                glob.append(24) # keep 24
+            else:
+                glob.append((t - 9 + time_zones[time_zone]) % 24)
+        return glob
+        # return list(map(lambda x: (x - 9 + time_zones[time_zone]) % 24, time))
     else:
         glob = (time - 9 + time_zones[time_zone]) % 24
         # glob = glob if glob < 24 else glob - 24
@@ -126,7 +180,8 @@ debug_id = '197x'
 Acceptable meeting hours in global time -- these are all hours
 """
 #8:30AM - 18:30PM EST, Nov 9, 2020 (Monday)
-sched_time = [local_to_global(8.75, 'EST'), local_to_global(18.5, 'EST')]
+sched_time = [init_local_to_global(8.75, 'EST'), init_local_to_global(18.5, 'EST')]
+sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
 
 
 """
@@ -137,15 +192,9 @@ num_day = 1
 """
 # Acceptable working hours
 """
-default_time = [0, 23.99]
-
-
-"""
-Duration T for discussing one paper (in hour)
-Currently support T such that 1/T is a natural number 
-"""
-slot_dur_in_hour = 1 # 15min
-num_slots_per_hour = int((1 / slot_dur_in_hour))
+# default_time = [0, 24] # local time
+#
+#  = [sched_time[0], sched_time[1]] # global time
 
 # Use fixed pseudo-random seed in optimization
 # for easier experimentation and debugging
@@ -157,7 +206,7 @@ Intentionally make time slots available for a specific time slot (by omitting re
 """
 
 weight_time = [[local_to_global(10,'EST'), local_to_global(11,'EST')]]
-weight_time_enabled = True
+weight_time_enabled = False
 
 
 
@@ -228,31 +277,30 @@ def get_index_hours(index):
 def check_feas_in_local_time(assignment, avail_list):
     checked = False
     for interval in avail_list:
-        if assignment[0] >= interval[0] and assignment[0] < interval[1]:
-            checked = True
-            break
+        if interval[0]<interval[1]: # ['00:00', '15:00']
+            if assignment[0] < assignment [1]: #22:00-23:00
+                if assignment[0] >= interval[0] and assignment[1] <= interval[1]:
+                    checked = True
+                    break
+            else:#23:00-00:00
+                checked = False
+
+        else: # ['22:00', '1:00']
+            if assignment[0] < assignment [1]: #22:00-23:00
+                if (assignment[0] >= interval[0] and assignment[1] <= interval[1]+24) or (assignment[0] >= interval[0]-24 and assignment[1] <= interval[1] + 24): # 22:00-23:00 is in ['22:00', '1:00'], # 00:00-1:00 is in ['23:00', '3:00']
+                    checked = True
+                    break
+            else:#23:00-00:00
+                if assignment[0] >= interval[0] and assignment[1]+24 <= interval[1]+24: # 23:00-00:00 is in ['23:00', '3:00']
+                    checked = True
+                    break
+
 
     return checked
 
 
-def _ceil(t):
-    n = t // 1 #natural number part
-    f = t % 1 #float part
-    for i in range(int(1/slot_dur_in_hour)):
-        if slot_dur_in_hour*(i) < f and f < slot_dur_in_hour*(i+1):
-            return n + slot_dur_in_hour*(i+1)
-        elif slot_dur_in_hour*(i) == f:
-            return t
 
-def _floor(t):
-    n = t // 1 #natural number part
-    f = t % 1 #float part
-    for i in range(int(1/slot_dur_in_hour)):
-        if slot_dur_in_hour*(i) <= f and f <= slot_dur_in_hour*(i+1):
-            return n + slot_dur_in_hour*(i)
-        elif slot_dur_in_hour*(i) == f:
-            return t
-
+# convert to global
 def time_parse(time_str, time_zone):
     times = []
     cnt = 0
@@ -265,15 +313,25 @@ def time_parse(time_str, time_zone):
             interval = interval.strip()[3:]
         time = []
         if interval.strip():
-            for hour in interval.strip().split("-"):
+            for i,hour in enumerate(interval.strip().split("-")):
                 if ":" in hour:
                     a = hour.split(":")
-                    time.append(float(a[0]) + float(a[1]) / 60)
+                    t= float(a[0]) + float(a[1]) / 60
+                    if i == 1 and t < time[0]:
+                        t+=24
+                    time.append(t)
                 elif hour == '':
                     # time.append(float(local_to_global(default_time[1], time_zone)))
-                    time.append(float(global_to_local(sched_time[1], time_zone)))
+                    t = float(global_to_local(sched_time[1], time_zone))
+                    if i == 1 and t < time[0]:
+                        t+=24
+                    time.append(t)
                 elif isinstance(hour, int):
-                    time.append(float(hour))
+
+                    t= float(hour)
+                    if i == 1 and t < time[0]:
+                        t+=24
+                    time.append(t)
                 else:
                     print(f'(DEBUG) Weird input in the schedule file. Converting to all available.')
                     print(f'hour: {hour}')
@@ -282,7 +340,7 @@ def time_parse(time_str, time_zone):
                 print(f"\n\nWrong time format in string '{time_str}'. It has to be ([not] <start>-<end>,)+\n\n")
                 assert (cnt == 1)
             if not neg:
-                time = list(map(lambda x: local_to_global(x, time_zone), default_time))
+                time = list(map(lambda x: x, sched_time))
             times.append(time)
         else:
             if not (len(time) == 2):
@@ -294,10 +352,10 @@ def time_parse(time_str, time_zone):
                 #         f"\n\nWrong time format in string '{time_str}'. We currently support only one interval with not keyword\n\n")
                 #     assert (cnt == 1 and notimes == 1)
                 tmp_times = []
-                if time[0] > default_time[0]:
-                    tmp_times.append([local_to_global(default_time[0], time_zone), local_to_global(time[0], time_zone)])
-                if time[1] < default_time[1]:
-                    tmp_times.append([local_to_global(time[1], time_zone), local_to_global(default_time[1], time_zone)])
+                if local_to_global(time[0], time_zone) > sched_time[0]:
+                    tmp_times.append([sched_time[0], local_to_global(time[0], time_zone)])
+                if local_to_global(time[1], time_zone) < sched_time[1]:
+                    tmp_times.append([local_to_global(time[1], time_zone), sched_time[1]])
 
                 if cnt >= 2:
                     import copy
@@ -321,6 +379,11 @@ def time_parse(time_str, time_zone):
         t[0], t[1] = _ceil(t[0]), _floor(t[1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
     # for t in times:
         # t[0], t[1] = math.ceil(t[0]), math.floor(t[1])  # celing the start time and flooring the end time to prevent dirty time assignment and IST conversion bug
+    for i in range(len(times)):
+        if times[i][0] < sched_time[0]:
+            times[i][0] = sched_time[0]
+        if times[i][1] > sched_time[1]:
+            times[i][1] = sched_time[1]
 
     return times
 
@@ -489,7 +552,7 @@ def find_best_times(paper_id):
                         rev = -2
                         break
 
-    if weight_time_enabled:
+    if weight_time_enabled: #TODO: bug, removed reviewers are printed as "ok" in the final assignment
         if len(intersect_times(result[0], weight_time)) == 0 and rev > -2:
             if rev == 0:
                 for r in revs:
@@ -521,7 +584,7 @@ def find_best_times(paper_id):
     return result, rev
 
 
-sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
+
 papers = {}
 reviewers = {}
 
@@ -534,7 +597,9 @@ def read_csv(encoding):
             if cnt > 1:
                 email = line[2].strip()
                 time_zone = line[7]
+
                 day_1 = time_parse(line[9], time_zone)
+                print(email, day_1)
                 day_2 = time_parse(line[9], time_zone)
 
                 reviewers[email] = {
@@ -892,7 +957,7 @@ print(f"TPC time:")
 print("  {:s}: {:2}-{:2} ".format(gc_tz1, to_str(global_to_local(sched_time[0], gc_tz1)), to_str(global_to_local(sched_time[1], gc_tz1))))
 print("  {:s}: {:2}-{:2} ".format(gc_tz2, to_str(global_to_local(sched_time[0], gc_tz2)), to_str(global_to_local(sched_time[1], gc_tz2))))
 print("")
-print(f"Default working hours: {default_time}\n")
+print(f"Default working hours: {sched_time}\n")
 
 total = feas + feas_1 + feas_2 + infeas
 print(f"\nSummary: ")

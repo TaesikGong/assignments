@@ -270,7 +270,8 @@ def time_parse(time_str, time_zone):
                     a = hour.split(":")
                     time.append(float(a[0]) + float(a[1]) / 60)
                 elif hour == '':
-                    time.append(float(local_to_global(default_time[1], time_zone)))
+                    # time.append(float(local_to_global(default_time[1], time_zone)))
+                    time.append(float(global_to_local(sched_time[1], time_zone)))
                 elif isinstance(hour, int):
                     time.append(float(hour))
                 else:

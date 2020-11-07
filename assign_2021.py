@@ -1218,6 +1218,9 @@ print("--------------------------------------------")
 print("pid,action,user")
 all_assigned = False
 max_leads = 2
+lead=['lead_pos', 'lead_neg']
+lead_reviewer=['lead_pos_reviewer', 'lead_neg_reviewer']
+
 while not all_assigned:
     for paper_id, v in papers.items():
         lead_rev = None
@@ -1227,80 +1230,110 @@ while not all_assigned:
 
         if paper_id in exception_list:
             continue
-        day = v["day"]
-        interv = v["slot"]
 
-        for r in v["reviewers"]:
-            tz = reviewers[r]["time_zone"]
+        for i in range(2):
 
-            if "RevExp" in reviewers[r]["papers"][paper_id].keys():
-                RevExp = int(reviewers[r]["papers"][paper_id]["RevExp"])
+            day = v["day"]
+            interv = v["slot"]
+
+            for r in v["reviewers"]:
+                tz = reviewers[r]["time_zone"]
+
+                if "RevExp" in reviewers[r]["papers"][paper_id].keys():
+                    RevExp = int(reviewers[r]["papers"][paper_id]["RevExp"])
+                else:
+                    RevExp = 0
+
+                if "OveMer" in reviewers[r]["papers"][paper_id].keys():
+                    OveMer = int(reviewers[r]["papers"][paper_id]["OveMer"])
+                else:
+                    OveMer = 0
+
+                if not lead[i] in reviewers[r].keys():
+                    noLeads = 0
+                else:
+                    noLeads = len(reviewers[r][lead[i]])
+
+                if i == 0: #better
+                    is_better = \
+                        (noLeads < max_leads) and ( \
+                                    OveMer > bestOveMer or \
+                                    (OveMer == bestOveMer and RevExp > bestRevExp) or \
+                                    (OveMer == bestOveMer and noLeads < bestNoLeads) or \
+                                    (RevExp > 1 and noLeads < bestNoLeads) \
+                            )
+                else: #worse
+                    is_better = \
+                        (noLeads < max_leads) and (r != papers[paper_id][lead_reviewer[0]]) and ( \
+                                    OveMer < bestOveMer or \
+                                    (OveMer == bestOveMer and RevExp > bestRevExp) or \
+                                    (OveMer == bestOveMer and noLeads < bestNoLeads) or \
+                                    (RevExp > 1 and noLeads < bestNoLeads) \
+                            )
+                '''
+                is_better = \
+                    (noLeads < max_leads) and ( \
+                                RevExp > bestRevExp or \
+                                (RevExp == bestRevExp and noLeads < bestNoLeads) or \
+                                (RevExp > 1 and noLeads < bestNoLeads) \
+                        )
+                '''
+
+                # (RevExp == bestRevExp and OveMer > bestOveMer) or \
+                # (RevExp == bestRevExp and OveMer == bestOveMer and noLeads < bestNoLeads) or \
+
+                ok = check_feas_in_local_time(global_to_local(interv, tz),
+                                              list(map(lambda x: global_to_local(x, tz), reviewers[r]["times"][day])))
+
+                if ok and (not lead_rev or is_better):
+                    lead_rev = r
+                    bestOveMer = OveMer
+                    bestRevExp = RevExp
+                    bestNoLeads = noLeads
+
+            if not lead[i] in reviewers[lead_rev].keys():
+                reviewers[lead_rev][lead[i]] = [paper_id]
             else:
-                RevExp = 0
+                reviewers[lead_rev][lead[i]].append(paper_id)
 
-            if "OveMer" in reviewers[r]["papers"][paper_id].keys():
-                OveMer = int(reviewers[r]["papers"][paper_id]["OveMer"])
-            else:
-                OveMer = 0
-
-            if not "lead" in reviewers[r].keys():
-                noLeads = 0
-            else:
-                noLeads = len(reviewers[r]["lead"])
-
-            is_better = \
-                (noLeads < max_leads) and ( \
-                            RevExp > bestRevExp or \
-                            (RevExp == bestRevExp and noLeads < bestNoLeads) or \
-                            (RevExp > 1 and noLeads < bestNoLeads) \
-                    )
-
-            # (RevExp == bestRevExp and OveMer > bestOveMer) or \
-            # (RevExp == bestRevExp and OveMer == bestOveMer and noLeads < bestNoLeads) or \
-
-            ok = check_feas_in_local_time(global_to_local(interv, tz),
-                                          list(map(lambda x: global_to_local(x, tz), reviewers[r]["times"][day])))
-
-            if ok and (not lead_rev or is_better):
-                lead_rev = r
-                bestOveMer = OveMer
-                bestRevExp = RevExp
-                bestNoLeads = noLeads
-
-        if not "lead" in reviewers[lead_rev].keys():
-            reviewers[lead_rev]["lead"] = [paper_id]
-        else:
-            reviewers[lead_rev]["lead"].append(paper_id)
-
-        papers[paper_id]["lead_reviewer"] = lead_rev
+            papers[paper_id][lead_reviewer[i]] = lead_rev
 
     all_assigned = True
     for paper_id, v in papers.items():
         if paper_id in exception_list:
             continue
-        if "lead_reviewer" not in papers[paper_id].keys():
+        if lead_reviewer[0] not in papers[paper_id].keys() or lead_reviewer[1] not in papers[paper_id].keys() :
             all_assigned = False
             break
 
 for paper_id, v in papers.items():
     if paper_id in exception_list:
         continue
-    if "lead_reviewer" not in papers[paper_id].keys():
-        lead_rev = ""
+
+    if lead_reviewer[0] not in papers[paper_id].keys():
+        lead_pos_rev = ""
     else:
-        lead_rev = papers[paper_id]["lead_reviewer"]
-    rev_scores = reviewers[lead_rev]["papers"][paper_id]
+        lead_pos_rev = papers[paper_id][lead_reviewer[0]]
+    rev_pos_scores = reviewers[lead_pos_rev]["papers"][paper_id]
+
+    if lead_reviewer[1] not in papers[paper_id].keys():
+        lead_neg_rev = ""
+    else:
+        lead_neg_rev = papers[paper_id][lead_reviewer[1]]
+    rev_neg_scores = reviewers[lead_neg_rev]["papers"][paper_id]
 
     # print(f"{paper_id},lead,{lead_rev},{rev_scores['RevExp']}")
     # print(f"{paper_id},lead,{lead_rev},{rev_scores}")
-    print(f"{paper_id},lead,{lead_rev}")
+    print(f"{paper_id}, lead_pos:{lead_pos_rev}, lead_neg:{lead_neg_rev}")
 
 print("\n\nNum_lead Aggregate:")
 for r in reviewers:
-    if not "lead" in reviewers[r].keys():
-        num = 0
-    else:
-        num = len(reviewers[r]["lead"])
+    num = 0
+    for i in range(2):
+        if not lead[i] in reviewers[r].keys():
+            pass
+        else:
+            num += len(reviewers[r][lead[i]])
     print(f"{r}: {num}")
 
 print("\n\nPapers with no overlapping time among reviewers:")

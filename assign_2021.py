@@ -990,10 +990,73 @@ for day in sched:
 """
 Print the slot assignment per paper, and also how does it fit each reviewer
 """
+
+
 print_paper_assignment_per_slot = True
 if print_paper_assignment_per_slot:
     print("\n\n")
-    print("Time slots per paper and reviewers:")
+    print("Time slots per paper and reviewers (sorted by the discussion order):")
+    print("--------------------------------------------")
+    for pid in discussion_order:
+        k=pid
+        v = papers[pid]
+        if k in exception_list:
+            continue
+
+        if v["rev"] < 0:
+            print("**** {} ({}): ".format(k, v["rev"]), end="")
+        else:
+            print("{}: ".format(k), end="")
+
+        day = v["day"]
+        interv = v["slot"]
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz1, to_str(global_to_local(interv[0], gc_tz1)), to_str(global_to_local(interv[1], gc_tz1))), end='')
+        print("{:s}=[{:2}-{:2}] ".format(gc_tz2, to_str(global_to_local(interv[0], gc_tz2)), to_str(global_to_local(interv[1], gc_tz2))), end='')
+        print("")
+        for r in v["reviewers"]:
+            tz = reviewers[r]["time_zone"]
+
+            ok = check_feas_in_local_time(global_to_local(interv, tz),
+                                          list(map(lambda x: global_to_local(x, tz), reviewers[r]["times"][day])))
+
+            # t0 = list(map(lambda x : global_to_local(x, tz), v["times"][0][0])) if len(v["times"][0]) > 0 else []
+            # t1 = list(map(lambda x : global_to_local(x, tz), v["times"][1][0])) if len(v["times"][1]) > 0 else []
+            # if global_to_local(interv[0], tz) < default_time[0] or global_to_local(interv[0], tz) > default_time[1]:
+
+            if not ok:
+                print("!!!! ", end="")
+
+            print(f"  {r}: ", end="")
+            print(" " * max([0, 30 - len(r)]), end="")
+
+            print(" Scores: ", end="")
+            for exp, score in reviewers[r]["papers"][k].items():
+                print(f"{exp}: {score} ", end="")
+
+            print(" assigned={}, {}-{} {}, \tavailable DAY1=".format(
+                "Day1" if day == 0 else "Day2",
+                to_str(global_to_local(interv[0], tz)), to_str(global_to_local(interv[1], tz)), tz), end="")
+
+            for i in reviewers[r]["times"][0]:
+                t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
+                print(f"{t0} ", end="")
+            print("   Day2=", end="")
+            for i in reviewers[r]["times"][1]:
+                t0 = list(map(lambda x: to_str(global_to_local(x, tz)), i))
+                print(f"{t0} ", end="")
+            print("")
+
+
+
+
+
+
+
+
+print_paper_assignment_per_slot = True
+if print_paper_assignment_per_slot:
+    print("\n\n")
+    print("Time slots per paper and reviewers (sorted by paper id):")
     print("--------------------------------------------")
     for k, v in papers.items():
 

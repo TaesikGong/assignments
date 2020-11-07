@@ -1289,15 +1289,16 @@ lead_reviewer=['lead_pos_reviewer', 'lead_neg_reviewer']
 
 while not all_assigned:
     for paper_id, v in papers.items():
-        lead_rev = None
-        bestOveMer = 0
-        bestRevExp = 0
-        bestNoLeads = 0
 
         if paper_id in exception_list:
             continue
 
         for i in range(2):
+
+            lead_rev = None
+            bestOveMer = 0
+            bestRevExp = 0
+            bestNoLeads = 1
 
             day = v["day"]
             interv = v["slot"]
@@ -1315,26 +1316,36 @@ while not all_assigned:
                 else:
                     OveMer = 0
 
-                if not lead[i] in reviewers[r].keys():
-                    noLeads = 0
+                if lead[0] in reviewers[r].keys() and lead[1] in reviewers[r].keys():
+                    noLeads = len(reviewers[r][lead[0]]) + len(reviewers[r][lead[1]])
+                elif lead[0] in reviewers[r].keys():
+                    noLeads = len(reviewers[r][lead[0]])
+                elif lead[1] in reviewers[r].keys():
+                    noLeads = len(reviewers[r][lead[1]])
                 else:
-                    noLeads = len(reviewers[r][lead[i]])
+                    noLeads = 0
 
                 if i == 0: #better
+                    # if noLeads < bestNoLeads:
+                    #     is_better = True
+                    # else:
                     is_better = \
-                        (noLeads < max_leads) and ( \
-                                    OveMer > bestOveMer or \
-                                    (OveMer == bestOveMer and RevExp > bestRevExp) or \
-                                    (OveMer == bestOveMer and noLeads < bestNoLeads) or \
-                                    (RevExp > 1 and noLeads < bestNoLeads) \
-                            )
+                    (noLeads < bestNoLeads) or ((noLeads < max_leads) and ( \
+                                OveMer > bestOveMer or \
+                                (OveMer == bestOveMer and RevExp > bestRevExp) or \
+                                (OveMer == bestOveMer and noLeads < bestNoLeads) or \
+                                (RevExp > 1 and noLeads < bestNoLeads)) \
+                        )
                 else: #worse
+                    # if noLeads < bestNoLeads and (r != papers[paper_id][lead_reviewer[0]]):
+                    #     is_better = True
+                    # else:
                     is_better = \
-                        (noLeads < max_leads) and (r != papers[paper_id][lead_reviewer[0]]) and ( \
+                        (noLeads < bestNoLeads) or ((noLeads < max_leads) and (r != papers[paper_id][lead_reviewer[0]]) and ( \
                                     OveMer < bestOveMer or \
                                     (OveMer == bestOveMer and RevExp > bestRevExp) or \
                                     (OveMer == bestOveMer and noLeads < bestNoLeads) or \
-                                    (RevExp > 1 and noLeads < bestNoLeads) \
+                                    (RevExp > 1 and noLeads < bestNoLeads)) \
                             )
                 '''
                 is_better = \
@@ -1351,7 +1362,7 @@ while not all_assigned:
                 ok = check_feas_in_local_time(global_to_local(interv, tz),
                                               list(map(lambda x: global_to_local(x, tz), reviewers[r]["times"][day])))
 
-                if ok and (not lead_rev or is_better):
+                if ok and (lead_rev is None or is_better):
                     lead_rev = r
                     bestOveMer = OveMer
                     bestRevExp = RevExp
@@ -1390,7 +1401,7 @@ for paper_id, v in papers.items():
 
     # print(f"{paper_id},lead,{lead_rev},{rev_scores['RevExp']}")
     # print(f"{paper_id},lead,{lead_rev},{rev_scores}")
-    print(f"{paper_id}, lead_pos:{lead_pos_rev}, lead_neg:{lead_neg_rev}")
+    print(f"{paper_id}, lead_pos:{lead_pos_rev}, \t lead_neg:{lead_neg_rev}")
 
 print("\n\nNum_lead Aggregate:")
 for r in reviewers:

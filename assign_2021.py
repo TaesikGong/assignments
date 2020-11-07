@@ -131,14 +131,20 @@ def local_to_global(time, time_zone):
     if isinstance(time, list):
         t = list(map(lambda x: x + 9 - time_zones[time_zone], time))
         if t[1] < sched_time[0]:
-            return [t[0]+24, t[1]+24]
+            if t[0]+24 >= sched_time[0] and t[1]+24 <=sched_time[1]:
+                return [t[0]+24, t[1]+24]
+            else:
+                return t
         else:
             return t
         # return list(map(lambda x: x + 9 - time_zones[time_zone], time))
     else:
         t = time + 9 - time_zones[time_zone]
         if t < sched_time[0]:
-            return t+24
+            if t+24 <= sched_time[1]:
+                return t+24
+            else:
+                return t
         else:
             return t
 
@@ -180,8 +186,8 @@ debug_id = '197x'
 Acceptable meeting hours in global time -- these are all hours
 """
 #8:30AM - 18:30PM EST, Nov 9, 2020 (Monday)
-sched_time = [init_local_to_global(8.75, 'EST'), init_local_to_global(18.5, 'EST')]
-sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
+sched_time = [init_local_to_global(8.5, 'EST'), init_local_to_global(18.5, 'EST')]
+# sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])]
 
 
 """
@@ -613,6 +619,7 @@ try:
 except UnicodeDecodeError as e:
     read_csv('ANSI')
 
+sched_time = [_ceil(sched_time[0]),_floor(sched_time[1])] #ceil and floor after time_parse
 cnt = 0
 with open(pc_assign_file, newline='') as csvfile:
     csvr = csv.reader(csvfile, delimiter=',', quotechar='"')

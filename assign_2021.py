@@ -632,6 +632,15 @@ def find_best_times(paper_id, rev_remove_num=0):
     return result, rev
 
 
+def to_str(time):
+    n = int(time // 1)
+    f = int((time %1) * 60)
+    if n == 0:
+        n="00"
+    if f == 0:
+        f="00"
+    return f"{n}:{f}"
+
 
 papers = {}
 reviewers = {}
@@ -713,6 +722,29 @@ for paper_id, v in papers.items():
         print(f"DEBUG_BEST_TIMES: {paper_id} {v['times']} {v['rev']}")
         for r in v["reviewers"]:
             print("  {}: {} {}".format(r, reviewers[r]["times"][0], reviewers[r]["times"][1]))
+
+
+"""
+Print available times for each paper
+"""
+for paper_id, v in papers.items():
+    times = papers[paper_id]['times'][0]
+
+    print(paper_id, end='/ ')
+    print(f"All reviewers {'' if papers[paper_id]['rev'] == 0 else papers[paper_id]['rev'] }")
+    print(gc_tz1, end='/ ')
+    for t in times:
+        print(f"{to_str(global_to_local(t[0], gc_tz1))}-{to_str(global_to_local(t[1], gc_tz1))}", end=' ')
+    print()
+    print(gc_tz2, end='/ ')
+    for t in times:
+        print(f"{to_str(global_to_local(t[0], gc_tz2))}-{to_str(global_to_local(t[1], gc_tz2))}", end=' ')
+    print('\n')
+    # for t in times:
+    #     print('UTC:', global_to_local(t, 'EST'))
+
+    # print("{:s}=[{:2}-{:2}] ".format(gc_tz2, to_str(global_to_local(interv[0], gc_tz2)),
+    #                                  to_str(global_to_local(interv[1], gc_tz2))), end='')
 
 """
 Create and optimize schedule.
@@ -931,6 +963,7 @@ for iter in range(1):
         iday = iday + 1
 
 
+'''
 """
 4. Move papers to allow two papers in the target slot by removing some reviewers 
 """
@@ -991,7 +1024,7 @@ for iter in range(1):
                                 paper["times"], paper["rev"] = copy.deepcopy(pre_times), copy.deepcopy(pre_rev)
             ihour = ihour + 1
         iday = iday + 1
-
+'''
 
 
 
@@ -1123,15 +1156,6 @@ overlapped_papers = sorted(list(set(overlapped_papers)))
 
 
 #######################################################################################################################
-def to_str(time):
-    n = int(time // 1)
-    f = int((time %1) * 60)
-    if n == 0:
-        n="00"
-    if f == 0:
-        f="00"
-    return f"{n}:{f}"
-
 
 """
 Copy the final schedule as to papers and reviewers structures

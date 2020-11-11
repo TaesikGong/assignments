@@ -36,22 +36,27 @@ with open('mobicom21-pcassignments.csv', newline='') as csvfile:
             reviewers[email] = {}
 
             #heuristic 1
-            # duration = 3
-            # first_start = random.randint(7, 23-duration)
-            # second_start = random.randint(7, 23-duration)
-            # reviewers[email]['first'] = f'not {first_start}:00-{first_start + duration}:00'
-            # reviewers[email]['second'] = f'not {second_start}:00-{second_start + duration}:00'
-            # reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
+            duration = 3
+            first_start = random.randint(7, 22-duration)
+            first_start_min1 = random.randint(0, 5)
+            first_start_min2 = random.randint(0, 5)
+            second_start = random.randint(7, 22-duration)
+            second_start_min1 = random.randint(0, 5)
+            second_start_min2 = random.randint(0, 5)
+
+            reviewers[email]['first'] = f'not {first_start}:{first_start_min1}0-{first_start + duration}:{first_start_min2}0'
+            reviewers[email]['second'] = f'not {second_start}:{second_start_min1}0-{second_start + duration}:{second_start_min2}0'
+            reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
 
 
             #heuristic 2
 
-            duration = 11
-            first_start = random.randint(7, 22-duration)
-            second_start = random.randint(7, 22-duration)
-            reviewers[email]['first'] = f'{first_start}:00-{first_start + duration}:00'
-            reviewers[email]['second'] = f'{second_start}:00-{second_start + duration}:00'
-            reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
+            # duration = 12
+            # first_start = random.randint(7, 22-duration)
+            # second_start = random.randint(7, 22-duration)
+            # reviewers[email]['first'] = f'{first_start}:00-{first_start + duration}:00'
+            # reviewers[email]['second'] = f'{second_start}:00-{second_start + duration}:00'
+            # reviewers[email]['time_zone'] = random.choice(list(time_zones.keys()))
 
 f = open(target_name, 'w', newline='',encoding='utf-8')
 wr = csv.writer(f)
